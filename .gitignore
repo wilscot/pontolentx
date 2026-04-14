@@ -1,0 +1,15 @@
+# Dados locais — banco, chave de criptografia, perfil Chrome
+data/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+*.egg-info/
+
+# Editor
+.vscode/
+.idea/

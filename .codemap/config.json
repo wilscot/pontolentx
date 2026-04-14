@@ -1,0 +1,13 @@
+{
+  "only": [
+    "py"
+  ],
+  "exclude": [],
+  "depth": 4,
+  "mode": "auto",
+  "budgets": {
+    "session_start_bytes": 30000,
+    "diff_bytes": 15000,
+    "max_hubs": 8
+  }
+}

@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Ponto TolentX</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<header class="header">
+  <div class="header-brand">PONTO <span>TOLENTX</span></div>
+  <nav class="header-nav">
+    <a href="/setup" class="btn btn-ghost btn-sm">Configurações</a>
+  </nav>
+</header>
+
+<div class="scheduler-bar">
+  <span class="status-dot {{ 'dot-green' if scheduler_running else 'dot-gray' }}"></span>
+  <span class="scheduler-label">Agendador {{ 'ativo' if scheduler_running else 'inativo' }}</span>
+  {% if scheduler_running %}
+    <button class="btn btn-danger btn-sm" onclick="toggleScheduler(false)">Pausar</button>
+  {% else %}
+    <button class="btn btn-primary btn-sm" onclick="toggleScheduler(true)">Iniciar</button>
+  {% endif %}
+  <div style="margin-left:auto; display:flex; gap:8px;">
+    <button class="btn btn-ghost btn-sm" onclick="importHolidays()">Importar feriados</button>
+    <button class="btn btn-ghost btn-sm" onclick="openTestModal()" style="border-color:var(--yellow);color:var(--yellow);">Testar</button>
+  </div>
+</div>
+
+<div class="week-container">
+  <div class="week-nav">
+    <button onclick="navigateWeek(-7)">&#8592;</button>
+    <span id="week-label">{{ days[0].date }} — {{ days[4].date }}</span>
+    <button onclick="navigateWeek(7)">&#8594;</button>
+  </div>
+
+  <div class="days-grid" id="days-grid">
+    {% for day in days %}
+    {% set is_off = day.day_type in ['feriado', 'folga', 'facultativo'] %}
+    <div class="day-card {% if day.is_today %}is-today{% elif day.is_past %}is-past{% endif %} {% if is_off %}is-{{ day.day_type }}{% endif %}"
+         data-date="{{ day.date }}">
+      <div class="day-header">
+        <div>
+          <div class="day-name">{{ day.weekday }}</div>
+          <div class="day-date">{{ day.date[8:] }}/{{ day.date[5:7] }}</div>
+        </div>
+        <div>
+          {% if day.is_today %}
+            <span class="day-badge today-badge">Hoje</span>
+          {% elif day.day_type == 'feriado' %}
+            <span class="day-badge holiday-badge" title="{{ day.notes }}" onclick="openDayModal('{{ day.date }}', '{{ day.day_type }}')">{{ day.day_type_label }}</span>
+          {% elif day.day_type == 'folga' %}
+            <span class="day-badge folga-badge" onclick="openDayModal('{{ day.date }}', '{{ day.day_type }}')">{{ day.day_type_label }}</span>
+          {% elif day.day_type == 'meio_expediente' %}
+            <span class="day-badge meio-badge" onclick="openDayModal('{{ day.date }}', '{{ day.day_type }}')">{{ day.day_type_label }}</span>
+          {% elif day.day_type == 'facultativo' %}
+            <span class="day-badge folga-badge" onclick="openDayModal('{{ day.date }}', '{{ day.day_type }}')">{{ day.day_type_label }}</span>
+          {% else %}
+            <span class="day-badge" onclick="openDayModal('{{ day.date }}', '{{ day.day_type }}')">{{ day.day_type_label }}</span>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if is_off %}
+        <div class="no-schedule">{{ day.notes or 'Sem registro neste dia' }}</div>
+      {% else %}
+        <div class="punches-list">
+          {% for punch in day.punches %}
+          <div class="punch-row">
+            <span class="punch-label">{{ punch.label }}</span>
+            {% if punch.status == 'registrado' %}
+              <span class="punch-time-display registered">{{ punch.actual_time }}</span>
+            {% elif punch.status == 'erro' %}
+              <span class="punch-time-display error">Erro</span>
+            {% elif punch.status == 'ignorado' %}
+              <span class="punch-time-display ignored">{{ punch.scheduled_time or '--' }}</span>
+            {% elif punch.id and not day.is_past %}
+              <input class="punch-time-input"
+                     type="time"
+                     value="{{ punch.scheduled_time or '' }}"
+                     data-id="{{ punch.id }}"
+                     data-original="{{ punch.scheduled_time or '' }}"
+                     onchange="markDirty(this)"
+                     onkeydown="if(event.key==='Enter') saveTime(this)">
+              <button class="save-btn" data-id="{{ punch.id }}" onclick="saveTime(this.previousElementSibling)">Salvar</button>
+              {% if day.is_today %}
+              <button class="btn btn-ghost btn-sm punch-now-btn"
+                      style="font-size:11px;padding:2px 8px;white-space:nowrap;"
+                      data-label="{{ punch.label }}"
+                      onclick="punchNow('{{ punch.punch_type }}', this)">Bater agora</button>
+              {% endif %}
+            {% elif punch.scheduled_time %}
+              <span class="punch-time-display">{{ punch.scheduled_time }}</span>
+            {% else %}
+              <span class="punch-time-display" style="color:var(--gray)">—</span>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Test-run modal -->
+<div class="modal-overlay" id="test-modal">
+  <div class="modal" style="width:480px;">
+    <h3>Modo de Teste — Dry Run</h3>
+    <p style="font-size:12px;color:var(--text-dim);margin-bottom:16px;line-height:1.6;">
+      O fluxo completo de autenticação será executado, mas o ponto <strong>não será registrado</strong>.
+      O teste para antes de clicar no botão de tipo de ponto.
+    </p>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+      <div class="form-group">
+        <label style="font-size:11px;color:var(--text-dim);">Tipo de ponto a simular</label>
+        <select id="test-punch-type" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px 10px;font-size:13px;width:100%;">
+          <option value="entrada">Entrada</option>
+          <option value="pausa">Pausa almoço</option>
+          <option value="retorno">Retorno</option>
+          <option value="saida">Saída</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label style="font-size:11px;color:var(--text-dim);">Modo do teste</label>
+        <select id="test-mode" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px 10px;font-size:13px;width:100%;">
+          <option value="visual">Visual (passo a passo)</option>
+          <option value="headless">Headless (log ao vivo)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Headless log panel -->
+    <div id="test-log-panel" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:16px;max-height:220px;overflow-y:auto;">
+      <div id="test-log-entries" style="font-size:12px;font-family:monospace;display:flex;flex-direction:column;gap:4px;"></div>
+    </div>
+
+    <!-- Visual mode hint -->
+    <div id="test-visual-hint" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:16px;font-size:12px;color:var(--text-dim);line-height:1.6;">
+      O Chrome abrirá em modo visual. Antes de cada clique, um overlay aparecerá na página do Pontotel com os botões
+      <strong style="color:#86efac;">CONFIRMAR</strong> e <strong style="color:#fca5a5;">CANCELAR</strong>.
+      Você também pode usar <kbd style="background:var(--surface);padding:1px 5px;border-radius:3px;border:1px solid var(--border);">Enter</kbd> e
+      <kbd style="background:var(--surface);padding:1px 5px;border-radius:3px;border:1px solid var(--border);">Esc</kbd>.
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" onclick="closeTestModal()">Fechar</button>
+      <button class="btn btn-sm" id="test-run-btn"
+        style="background:var(--yellow);color:#000;font-weight:700;"
+        onclick="startTestRun()">Iniciar teste</button>
+    </div>
+  </div>
+</div>
+
+<!-- Day type modal -->
+<div class="modal-overlay" id="day-modal">
+  <div class="modal">
+    <h3 id="modal-title">Configurar dia</h3>
+    <input type="hidden" id="modal-date">
+
+    <div class="modal-options" id="modal-options">
+      <label class="modal-option">
+        <input type="radio" name="day_type" value="normal">
+        <div><div class="modal-option-label">Normal</div><div class="modal-option-desc">Registra os 4 pontos no horário programado</div></div>
+      </label>
+      <label class="modal-option">
+        <input type="radio" name="day_type" value="folga">
+        <div><div class="modal-option-label">Folga</div><div class="modal-option-desc">Nenhum ponto será registrado</div></div>
+      </label>
+      <label class="modal-option">
+        <input type="radio" name="day_type" value="feriado">
+        <div><div class="modal-option-label">Feriado</div><div class="modal-option-desc">Nenhum ponto será registrado</div></div>
+      </label>
+      <label class="modal-option">
+        <input type="radio" name="day_type" value="facultativo">
+        <div><div class="modal-option-label">Ponto facultativo</div><div class="modal-option-desc">Nenhum ponto será registrado</div></div>
+      </label>
+      <label class="modal-option" onclick="toggleHalfFields(true)">
+        <input type="radio" name="day_type" value="meio_expediente">
+        <div><div class="modal-option-label">Meio expediente</div><div class="modal-option-desc">Define horários customizados para o dia</div></div>
+      </label>
+    </div>
+
+    <div class="modal-half-fields" id="half-fields">
+      <h4>Horários do meio expediente</h4>
+      <div class="half-grid">
+        <div class="half-field">
+          <label>Entrada</label>
+          <input type="time" id="half-entrada" value="07:30">
+        </div>
+        <div class="half-field">
+          <label>Saída</label>
+          <input type="time" id="half-saida" value="12:30">
+        </div>
+      </div>
+      <p style="font-size:11px;color:var(--text-dim);margin-top:8px;">Apenas entrada e saída serão registradas.</p>
+    </div>
+
+    <input class="modal-notes" type="text" id="modal-notes" placeholder="Observação (opcional)">
+
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary btn-sm" onclick="saveDayType()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+  let currentWeekStart = "{{ week_start }}";
+
+  // ── time input handling ──
+  function markDirty(input) {
+    const saveBtn = input.nextElementSibling;
+    if (saveBtn && saveBtn.classList.contains('save-btn')) {
+      saveBtn.classList.add('visible');
+    }
+  }
+
+  async function saveTime(input) {
+    const id = input.dataset.id;
+    const value = input.value;
+    if (!value) return;
+
+    const res = await fetch(`/api/schedule/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scheduled_time: value })
+    });
+
+    if (res.ok) {
+      input.dataset.original = value;
+      const saveBtn = input.nextElementSibling;
+      if (saveBtn) saveBtn.classList.remove('visible');
+      toast('Horário atualizado', 'success');
+    } else {
+      toast('Erro ao salvar horário', 'error');
+    }
+  }
+
+  // ── scheduler ──
+  async function toggleScheduler(start) {
+    const url = start ? '/api/scheduler/start' : '/api/scheduler/stop';
+    try {
+      const res = await fetch(url, { method: 'POST' });
+      if (res.ok) {
+        location.reload();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast('Erro ao ' + (start ? 'iniciar' : 'pausar') + ' agendador: ' + (err.error || res.status), 'error');
+      }
+    } catch (e) {
+      toast('Falha de conexão ao agendador', 'error');
+    }
+  }
+
+  // ── punch now ──
+  async function punchNow(punchType, btn) {
+    if (!confirm(`Registrar "${btn.dataset.label}" agora de verdade?`)) return;
+    btn.disabled = true;
+    btn.textContent = '...';
+    const res = await fetch('/api/punch-now', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ punch_type: punchType })
+    });
+    const data = await res.json();
+    if (data.started) {
+      toast('Registro iniciado — aguarde...', 'success');
+      setTimeout(() => location.reload(), 25000);
+    } else {
+      toast(data.error || 'Erro ao registrar', 'error');
+      btn.disabled = false;
+      btn.textContent = 'Bater agora';
+    }
+  }
+
+  // ── week navigation ──
+  async function navigateWeek(days) {
+    const d = new Date(currentWeekStart + 'T00:00:00');
+    d.setDate(d.getDate() + days);
+    const newStart = d.toISOString().slice(0, 10);
+
+    const res = await fetch(`/api/week/${newStart}`);
+    if (!res.ok) return;
+
+    const weekData = await res.json();
+    currentWeekStart = newStart;
+    document.getElementById('week-label').textContent = `${weekData[0].date} — ${weekData[4].date}`;
+    renderWeek(weekData);
+  }
+
+  function renderWeek(days) {
+    const grid = document.getElementById('days-grid');
+    grid.innerHTML = days.map(renderDay).join('');
+  }
+
+  function renderDay(day) {
+    const isOff = ['feriado', 'folga', 'facultativo'].includes(day.day_type);
+    const classes = [
+      'day-card',
+      day.is_today ? 'is-today' : '',
+      day.is_past  ? 'is-past'  : '',
+      isOff        ? `is-${day.day_type}` : ''
+    ].filter(Boolean).join(' ');
+
+    const badgeHtml = renderBadge(day);
+    const bodyHtml  = isOff
+      ? `<div class="no-schedule">${day.notes || 'Sem registro neste dia'}</div>`
+      : `<div class="punches-list">${day.punches.map(p => renderPunch(p, day)).join('')}</div>`;
+
+    return `
+      <div class="${classes}" data-date="${day.date}">
+        <div class="day-header">
+          <div>
+            <div class="day-name">${day.weekday}</div>
+            <div class="day-date">${day.date.slice(8)}/${day.date.slice(5,7)}</div>
+          </div>
+          <div>${badgeHtml}</div>
+        </div>
+        ${bodyHtml}
+      </div>`;
+  }
+
+  function renderBadge(day) {
+    const label = { normal:'Normal', feriado:'Feriado', folga:'Folga', facultativo:'Ponto facultativo', meio_expediente:'Meio expediente' };
+    const cls   = { normal:'', feriado:'holiday-badge', folga:'folga-badge', facultativo:'folga-badge', meio_expediente:'meio-badge' };
+    if (day.is_today) return `<span class="day-badge today-badge">Hoje</span>`;
+    return `<span class="day-badge ${cls[day.day_type] || ''}" onclick="openDayModal('${day.date}','${day.day_type}')">${label[day.day_type] || day.day_type}</span>`;
+  }
+
+  function renderPunch(punch, day) {
+    if (punch.status === 'registrado')
+      return `<div class="punch-row"><span class="punch-label">${punch.label}</span><span class="punch-time-display registered">${punch.actual_time}</span></div>`;
+    if (punch.status === 'erro')
+      return `<div class="punch-row"><span class="punch-label">${punch.label}</span><span class="punch-time-display error">Erro</span></div>`;
+    if (punch.status === 'ignorado')
+      return `<div class="punch-row"><span class="punch-label">${punch.label}</span><span class="punch-time-display ignored">${punch.scheduled_time || '--'}</span></div>`;
+    if (punch.id && !day.is_past) {
+      const nowBtn = day.is_today
+        ? `<button class="btn btn-ghost btn-sm punch-now-btn" style="font-size:11px;padding:2px 8px;white-space:nowrap;"
+             data-label="${punch.label}"
+             onclick="punchNow('${punch.punch_type}', this)">Bater agora</button>`
+        : '';
+      return `<div class="punch-row">
+        <span class="punch-label">${punch.label}</span>
+        <input class="punch-time-input" type="time" value="${punch.scheduled_time || ''}"
+               data-id="${punch.id}" data-original="${punch.scheduled_time || ''}"
+               onchange="markDirty(this)" onkeydown="if(event.key==='Enter') saveTime(this)">
+        <button class="save-btn" onclick="saveTime(this.previousElementSibling)">Salvar</button>
+        ${nowBtn}
+      </div>`;
+    }
+    return `<div class="punch-row"><span class="punch-label">${punch.label}</span><span class="punch-time-display">${punch.scheduled_time || '—'}</span></div>`;
+  }
+
+  // ── day type modal ──
+  function openDayModal(date, currentType) {
+    document.getElementById('modal-date').value = date;
+    document.getElementById('modal-title').textContent = `Configurar ${date.slice(8)}/${date.slice(5,7)}`;
+    document.getElementById('modal-notes').value = '';
+    document.getElementById('half-fields').classList.remove('visible');
+
+    const radios = document.querySelectorAll('input[name=day_type]');
+    radios.forEach(r => {
+      r.checked = r.value === currentType;
+      r.closest('.modal-option').addEventListener('click', () => {
+        toggleHalfFields(r.value === 'meio_expediente');
+      });
+    });
+
+    document.getElementById('day-modal').classList.add('open');
+  }
+
+  function closeModal() {
+    document.getElementById('day-modal').classList.remove('open');
+  }
+
+  function toggleHalfFields(show) {
+    document.getElementById('half-fields').classList.toggle('visible', show);
+  }
+
+  async function saveDayType() {
+    const date = document.getElementById('modal-date').value;
+    const dayType = document.querySelector('input[name=day_type]:checked')?.value;
+    const notes = document.getElementById('modal-notes').value;
+
+    if (!dayType) return;
+
+    let customJson = '{}';
+    if (dayType === 'meio_expediente') {
+      customJson = JSON.stringify({
+        punch_types: ['entrada', 'saida'],
+        entrada: document.getElementById('half-entrada').value,
+        saida:   document.getElementById('half-saida').value,
+      });
+    }
+
+    if (dayType === 'normal') {
+      await fetch(`/api/special-day/${date}`, { method: 'DELETE' });
+    } else {
+      await fetch('/api/special-day', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date, day_type: dayType, notes, custom_json: customJson })
+      });
+    }
+
+    closeModal();
+    toast('Dia atualizado', 'success');
+    // Reload week to reflect changes
+    const res = await fetch(`/api/week/${currentWeekStart}`);
+    if (res.ok) renderWeek(await res.json());
+  }
+
+  // ── holidays ──
+  async function importHolidays() {
+    const res = await fetch('/api/holidays/import', { method: 'POST' });
+    if (res.ok) {
+      const data = await res.json();
+      toast(`${data.imported} feriados importados`, 'success');
+      const r2 = await fetch(`/api/week/${currentWeekStart}`);
+      if (r2.ok) renderWeek(await r2.json());
+    } else {
+      toast('Erro ao importar feriados', 'error');
+    }
+  }
+
+  // ── toast ──
+  function toast(msg, type = 'success') {
+    const container = document.getElementById('toast-container');
+    const el = document.createElement('div');
+    el.className = `toast toast-${type}`;
+    el.textContent = msg;
+    container.appendChild(el);
+    setTimeout(() => el.remove(), 3500);
+  }
+
+  // Close modal on overlay click
+  document.getElementById('day-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+  });
+
+  document.getElementById('test-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeTestModal();
+  });
+
+  document.getElementById('test-mode').addEventListener('change', function() {
+    updateTestModeHint(this.value);
+  });
+
+  // ── test-run modal ──
+  function openTestModal() {
+    document.getElementById('test-modal').classList.add('open');
+    document.getElementById('test-log-panel').style.display = 'none';
+    document.getElementById('test-log-entries').innerHTML = '';
+    document.getElementById('test-run-btn').disabled = false;
+    updateTestModeHint(document.getElementById('test-mode').value);
+  }
+
+  function closeTestModal() {
+    document.getElementById('test-modal').classList.remove('open');
+  }
+
+  function updateTestModeHint(mode) {
+    document.getElementById('test-visual-hint').style.display = mode === 'visual' ? 'block' : 'none';
+    document.getElementById('test-log-panel').style.display = mode === 'headless' ? 'block' : 'none';
+  }
+
+  function appendLogEntry(message, ok) {
+    const entry = document.createElement('div');
+    entry.style.cssText = `color:${ok ? '#86efac' : '#fca5a5'};padding:2px 0;`;
+    entry.textContent = `${ok ? '✓' : '✗'} ${message}`;
+    const container = document.getElementById('test-log-entries');
+    container.appendChild(entry);
+    container.scrollTop = container.scrollHeight;
+  }
+
+  async function startTestRun() {
+    const punchType = document.getElementById('test-punch-type').value;
+    const mode = document.getElementById('test-mode').value;
+    const btn = document.getElementById('test-run-btn');
+
+    btn.disabled = true;
+    btn.textContent = 'Executando...';
+
+    if (mode === 'headless') {
+      document.getElementById('test-log-panel').style.display = 'block';
+      document.getElementById('test-log-entries').innerHTML = '';
+
+      const startRes = await fetch('/api/test-run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ punch_type: punchType, mode: 'headless' })
+      });
+
+      if (!startRes.ok) {
+        const err = await startRes.json();
+        appendLogEntry(err.error || 'Erro ao iniciar teste', false);
+        btn.disabled = false;
+        btn.textContent = 'Iniciar teste';
+        return;
+      }
+
+      const evtSource = new EventSource('/api/test-run/stream');
+      evtSource.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        if (data.done) {
+          evtSource.close();
+          btn.disabled = false;
+          btn.textContent = 'Iniciar teste';
+          return;
+        }
+        appendLogEntry(data.step, data.ok);
+      };
+      evtSource.onerror = () => {
+        evtSource.close();
+        btn.disabled = false;
+        btn.textContent = 'Iniciar teste';
+      };
+
+    } else {
+      // Visual mode: fire and forget, user interacts with Chrome window
+      await fetch('/api/test-run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ punch_type: punchType, mode: 'visual' })
+      });
+      toast('Chrome abrirá — confirme cada passo no overlay da página', 'success');
+      btn.disabled = false;
+      btn.textContent = 'Iniciar teste';
+    }
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Configurações — Ponto TolentX</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<header class="header">
+  <div class="header-brand">PONTO <span>TOLENTX</span></div>
+  <nav class="header-nav">
+    <a href="/" class="btn btn-ghost btn-sm">&#8592; Voltar</a>
+  </nav>
+</header>
+
+<div class="setup-container">
+  <h2>Configurações</h2>
+
+  {% if error %}
+  <div class="toast toast-error" style="margin-bottom:16px;">{{ error }}</div>
+  {% endif %}
+
+  <form method="POST" action="/setup">
+
+    <!-- Credentials -->
+    <div class="form-section">
+      <h3>Credenciais Pontotel</h3>
+      <div class="form-grid">
+        <div class="form-group full">
+          <label>E-mail de acesso</label>
+          <input type="email" name="email" value="{{ config.email }}" required placeholder="usuario@empresa.com.br">
+        </div>
+        <div class="form-group">
+          <label>Senha</label>
+          <input type="password" name="senha" placeholder="{{ '••••••••' if config.senha_enc else 'Definir senha' }}">
+          {% if config.senha_enc %}
+          <span class="form-hint">Deixe em branco para manter a senha atual.</span>
+          {% endif %}
+        </div>
+        <div class="form-group">
+          <label>Nome do coletor</label>
+          <input type="text" name="local_coletor" value="{{ config.local_coletor }}" required placeholder="SETDIG">
+        </div>
+        <div class="form-group full">
+          <label>PIN de registro</label>
+          <input type="password" name="pin" placeholder="{{ '••••••••' if config.pin_enc else 'Definir PIN' }}" inputmode="numeric">
+          {% if config.pin_enc %}
+          <span class="form-hint">Deixe em branco para manter o PIN atual.</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Chrome profile & execution mode -->
+    <div class="form-section">
+      <h3>Perfil Chrome</h3>
+
+      <div style="background:#1e3a5f;border:1px solid #1e40af;border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:#93c5fd;line-height:1.6;">
+        <strong>Perfil dedicado (recomendado)</strong><br>
+        Use um diretório exclusivo para a automação — assim o Chrome principal pode ficar aberto normalmente.<br>
+        <strong>Opção A:</strong> Clique em <strong>"Importar sessão do Chrome"</strong> para copiar sua sessão atual do Pontotel — sem precisar fazer login novamente.<br>
+        <strong>Opção B:</strong> Clique em <strong>"Abrir Chrome para configurar"</strong> para fazer login e registrar o coletor manualmente.
+      </div>
+
+      <div class="form-group">
+        <label>Diretório do perfil de automação</label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="text" name="chrome_profile_path" id="profile-path-input"
+            value="{{ config.chrome_profile_path }}"
+            style="flex:1;" placeholder="Ex: C:\caminho\para\perfil">
+          <button type="button" class="btn btn-ghost btn-sm" id="btn-open-profile"
+            onclick="openProfileSetup()" style="white-space:nowrap;">
+            Abrir Chrome para configurar
+          </button>
+          <button type="button" class="btn btn-danger btn-sm" id="btn-close-profile"
+            onclick="closeProfileSetup()" style="white-space:nowrap;display:none;">
+            Fechar Chrome
+          </button>
+        </div>
+        <span class="form-hint" id="profile-hint">Este diretório é separado do seu Chrome pessoal. Será criado automaticamente se não existir.</span>
+      </div>
+
+      <div class="form-group" style="margin-top:8px;">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <button type="button" class="btn btn-ghost btn-sm" id="btn-import-session"
+            onclick="importSession()" style="white-space:nowrap;">
+            Importar sessão do Chrome
+          </button>
+          <span id="import-session-hint" style="font-size:12px;color:var(--text-dim);">
+            Copia cookies do seu Chrome pessoal para o perfil de automação. <strong>Feche o Chrome antes.</strong>
+          </span>
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-top:16px;">
+        <label>Modo de execução do Chrome</label>
+        <div style="display:flex;gap:16px;margin-top:6px;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
+            <input type="radio" name="headless_mode" value="0"
+              {{ 'checked' if config.headless_mode != '1' else '' }}
+              style="accent-color:var(--accent);">
+            <span>
+              <strong>Visual</strong>
+              <span style="color:var(--text-dim);font-size:11px;display:block;">Janela do Chrome abre a cada registro — recomendado para validação inicial</span>
+            </span>
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
+            <input type="radio" name="headless_mode" value="1"
+              {{ 'checked' if config.headless_mode == '1' else '' }}
+              style="accent-color:var(--accent);">
+            <span>
+              <strong>Headless (silencioso)</strong>
+              <span style="color:var(--text-dim);font-size:11px;display:block;">Chrome roda em segundo plano sem abrir janela</span>
+            </span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Punch times and ranges -->
+    <div class="form-section">
+      <h3>Horários base e variação aleatória</h3>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:16px;">
+        O horário real será sorteado dentro do range configurado. O minuto nunca se repete em relação ao dia anterior no mesmo período.
+      </p>
+
+      {% set punch_defaults = {
+        'entrada':  {'label': 'Entrada',       'base': config.entrada_base  or '07:30', 'antes': config.entrada_range_antes  or '10', 'depois': config.entrada_range_depois  or '15'},
+        'pausa':    {'label': 'Pausa almoço',  'base': config.pausa_base    or '11:30', 'antes': config.pausa_range_antes    or '10', 'depois': config.pausa_range_depois    or '15'},
+        'retorno':  {'label': 'Retorno',       'base': config.retorno_base  or '12:30', 'antes': config.retorno_range_antes  or '10', 'depois': config.retorno_range_depois  or '15'},
+        'saida':    {'label': 'Saída',         'base': config.saida_base    or '16:30', 'antes': config.saida_range_antes    or '10', 'depois': config.saida_range_depois    or '15'},
+      } %}
+
+      {% for key, p in punch_defaults.items() %}
+      <div class="punch-config-block">
+        <div class="punch-config-title">{{ p.label }}</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Horário base</label>
+            <input type="time" name="{{ key }}_base" value="{{ p.base }}" required>
+          </div>
+          <div class="form-group">
+            <label>Range de variação (minutos)</label>
+            <div class="range-row">
+              <span>- </span>
+              <input type="number" name="{{ key }}_range_antes" value="{{ p.antes }}" min="0" max="59" required>
+              <span> + </span>
+              <input type="number" name="{{ key }}_range_depois" value="{{ p.depois }}" min="0" max="59" required>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <button type="submit" class="btn btn-primary">Salvar configurações</button>
+  </form>
+</div>
+
+<script>
+  async function openProfileSetup() {
+    const profilePath = document.getElementById('profile-path-input').value.trim();
+    const btn = document.getElementById('btn-open-profile');
+    btn.disabled = true;
+    btn.textContent = 'Abrindo...';
+
+    const res = await fetch('/api/open-profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile_path: profilePath || null })
+    });
+    const data = await res.json();
+
+    if (data.ok) {
+      document.getElementById('profile-path-input').value = data.profile_path;
+      document.getElementById('btn-open-profile').style.display = 'none';
+      document.getElementById('btn-close-profile').style.display = '';
+      document.getElementById('profile-hint').innerHTML =
+        '<strong style="color:#86efac;">Chrome aberto.</strong> Faça login no Pontotel e registre o coletor <strong>' +
+        (document.querySelector('[name=local_coletor]').value || 'SETDIG') +
+        '</strong>. Quando terminar, clique em <strong>Fechar Chrome</strong> e salve as configurações.';
+    } else {
+      btn.disabled = false;
+      btn.textContent = 'Abrir Chrome para configurar';
+      alert('Erro ao abrir Chrome: ' + data.error);
+    }
+  }
+
+  async function closeProfileSetup() {
+    await fetch('/api/close-profile', { method: 'POST' });
+    document.getElementById('btn-open-profile').style.display = '';
+    document.getElementById('btn-open-profile').disabled = false;
+    document.getElementById('btn-open-profile').textContent = 'Abrir Chrome para configurar';
+    document.getElementById('btn-close-profile').style.display = 'none';
+    document.getElementById('profile-hint').textContent = 'Este diretório é separado do seu Chrome pessoal. Será criado automaticamente se não existir.';
+  }
+
+  async function importSession() {
+    const btn = document.getElementById('btn-import-session');
+    const hint = document.getElementById('import-session-hint');
+    btn.disabled = true;
+    btn.textContent = 'Importando...';
+    hint.innerHTML = 'Copiando cookies e Local Storage...';
+
+    const res = await fetch('/api/import-session', { method: 'POST' });
+    const data = await res.json();
+
+    if (data.ok) {
+      hint.innerHTML = '<strong style="color:#86efac;">Sessão importada com sucesso.</strong> Salve as configurações e use "Testar" na tela principal para validar.';
+      btn.textContent = 'Importar sessão do Chrome';
+      btn.disabled = false;
+    } else {
+      hint.innerHTML = '<strong style="color:#fca5a5;">' + data.error + '</strong>';
+      btn.textContent = 'Importar sessão do Chrome';
+      btn.disabled = false;
+    }
+  }
+</script>
+</body>
+</html>
