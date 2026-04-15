@@ -7,11 +7,10 @@ Automatizador local de batida de ponto para a Pontotel, com interface web em Fla
 Em uma maquina nova, o caminho oficial e suportado e:
 
 1. Baixar o projeto e extrair em uma pasta local.
-2. Instalar as dependencias:
+2. Instalar o sistema por:
 
-```bash
-pip install -r requirements.txt
-python -m playwright install chrome
+```bat
+instalar_pontolentx.cmd
 ```
 
 3. Iniciar o sistema por:
@@ -20,7 +19,13 @@ python -m playwright install chrome
 start_pontolentx.cmd
 ```
 
-Esse launcher:
+O instalador:
+
+- roda `pip install -r requirements.txt`
+- roda `python -m playwright install chrome`
+- prepara a maquina para a primeira execucao
+
+O launcher:
 
 - encontra `pythonw.exe`
 - executa `tray_launcher.py` sem abrir console

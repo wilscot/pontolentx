@@ -70,12 +70,16 @@ PONTO TOLENTX 2.0/
 ## Como Executar
 
 ```bash
-pip install -r requirements.txt
-python -m playwright install chrome
+instalar_pontolentx.cmd
 start_pontolentx.cmd
 ```
 
-Fluxo oficial no Windows: instalar dependências e executar `start_pontolentx.cmd`. O launcher sobe na bandeja do sistema, inicia o serviço local e abre o dashboard. Se o sistema ainda não estiver configurado (sem e-mail + senha), redireciona automaticamente para `/setup`.
+Fluxo oficial no Windows:
+
+1. executar `instalar_pontolentx.cmd`
+2. executar `start_pontolentx.cmd`
+
+O launcher sobe na bandeja do sistema, inicia o serviço local e abre o dashboard. Se o sistema ainda não estiver configurado (sem e-mail + senha), redireciona automaticamente para `/setup`.
 
 Para diagnóstico ou desenvolvimento, `python app.py` continua válido, mas não é mais o caminho principal para uso diário.
 
@@ -90,8 +94,7 @@ Para onboarding simples em Windows:
 3. Rodar:
 
 ```bash
-pip install -r requirements.txt
-python -m playwright install chrome
+instalar_pontolentx.cmd
 start_pontolentx.cmd
 ```
 
