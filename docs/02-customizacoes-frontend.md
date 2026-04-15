@@ -182,6 +182,7 @@ Comportamento:
 ### 2026-04-15 — Sessão 4: Home com 2 Semanas + Exibição Completa de Agendamento
 
 **Arquivos:** `templates/index.html`, `static/style.css`
+**Status:** Validado
 
 #### Nova composição da tela principal
 

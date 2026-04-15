@@ -363,3 +363,20 @@ Botão "Sair" adicionado ao header de ambos os templates. Implementado como form
 
 - A semântica de “não executado” permaneceu no backend (`status='nao_executado'`), mas a UI deixou de exibir texto `"Nulo"` e passou a exibir `Ex: —`.
 - Nenhuma alteração de contrato API para esse ajuste visual.
+
+---
+
+### 2026-04-15 — Sessão 7: Registro de Escopo Pronto e Validado
+
+**Status consolidado:** Validado em ambiente local.
+
+Itens validados:
+
+- Recalculo de agenda pendente futura ao salvar `/setup` quando muda base/range.
+- Preservação de horários manuais (`manual_override=1`) durante recálculos.
+- Horizonte de 4 semanas com recálculo semanal/mensal.
+- Payload de duas semanas em `GET /api/week/<week_start>` e consumo na home.
+
+Fora do escopo validado nesta etapa:
+
+- launcher de tray (`tray_launcher.py`), scripts de empacotamento e artefatos de build/distribuição.

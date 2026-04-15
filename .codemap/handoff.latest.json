@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-04-14T20:24:23.2089042-04:00",
+  "root": "C:\\Users\\wfrancischini\\Desktop\\PROJETOS\\PONTO TOLENTX 2.0",
+  "branch": "main",
+  "base_ref": "main",
+  "prefix": {
+    "file_count": 26,
+    "hubs": [
+      {
+        "path": "db.py",
+        "importers": 4
+      }
+    ]
+  },
+  "delta": {
+    "changed": [
+      {
+        "path": ".claude/settings.local.json",
+        "hash": "7a8c960ca71bb1b5a6be0482cb7f1e29a8b67a22931dea27a71b92549a648772",
+        "size": 1242,
+        "status": "modified"
+      },
+      {
+        "path": "app.py",
+        "hash": "729f7c924b8157d7f4cf80e5cef8fe1fc5bc179de083da4b912049ecae2ad651",
+        "size": 20202,
+        "status": "modified"
+      },
+      {
+        "path": "db.py",
+        "hash": "386034b59e8983e6a89a9b67113a6dd189a8e7937783757c194ddbdba4183c0b",
+        "size": 11456,
+        "status": "modified"
+      },
+      {
+        "path": "docs/01-implantacao.md",
+        "hash": "d92223799792a231d3a364876b260e73ee5cb4543ef7ab940446c7fb0a44accf",
+        "size": 6641,
+        "status": "modified"
+      },
+      {
+        "path": "docs/02-customizacoes-frontend.md",
+        "hash": "4e55f1f2531af44ef12589b2071ae62bad05de723473e18e5406c169db0ca0bb",
+        "size": 7950,
+        "status": "modified"
+      },
+      {
+        "path": "docs/03-customizacoes-backend.md",
+        "hash": "1b60ed890bd31881d246dca5348db6bdd020a77e41415f52e08afd785df7418b",
+        "size": 14713,
+        "status": "modified"
+      },
+      {
+        "path": "scheduler.py",
+        "hash": "a92b99b056f5c488fb4dc80d4c9ba4bd1880d7927ecccc278aac080e48779f5b",
+        "size": 8701,
+        "status": "modified"
+      },
+      {
+        "path": "static/style.css",
+        "hash": "163ab57ceb18adef34979607551eae5a2a26281dc277d9d82f893581d1b60c1e",
+        "size": 10706,
+        "status": "modified"
+      },
+      {
+        "path": "templates/index.html",
+        "hash": "ecb1dda4e421e42332755b7a0a41ec5629d7bfd59337de2dc5bbc9d8bb37b181",
+        "size": 25952,
+        "status": "modified"
+      },
+      {
+        "path": "templates/login.html",
+        "hash": "493b5499998feab4808c9dc6a2660f62b5e4e6f1a9e890466f6a76fa4ea67935",
+        "size": 2634,
+        "status": "untracked"
+      },
+      {
+        "path": "templates/setup.html",
+        "hash": "eccf219505c2c67e329f9a4970294ba9850310bc7673e16ca1a97ef9db6c74ba",
+        "size": 10487,
+        "status": "modified"
+      }
+    ],
+    "risk_files": [
+      {
+        "path": "db.py",
+        "importers": 4,
+        "is_hub": true,
+        "reason": "hub file imported by 4 files"
+      }
+    ],
+    "recent_events": [],
+    "next_steps": [
+      "Review downstream dependents for high-impact files before merge.",
+      "Run tests covering changed files before handoff."
+    ],
+    "open_questions": [
+      "Live watch state was unavailable; timeline may be incomplete."
+    ]
+  },
+  "prefix_hash": "7097dfca1c2b8f2a048ede93c0f3a69835e577686bb690772f8488d297a7b29e",
+  "delta_hash": "0cfed1e2197d7aa82538aa54743eb0a424c7d4f1879a92430e59e70388bc53c0",
+  "combined_hash": "0369cd7b682c46e8e8150b8041fd16a2c3531dcabb108b8392387670ca0fcc8e",
+  "metrics": {
+    "prefix_bytes": 57,
+    "delta_bytes": 1866,
+    "total_bytes": 1923,
+    "unchanged_bytes": 0,
+    "reuse_ratio": 0,
+    "prefix_reused": false,
+    "delta_reused": false,
+    "previous_combined_hash": "79d918c55c153014cc801ef9113c9ddca425363aadc057ee604855b5e2e23d05"
+  },
+  "changed_files": [
+    ".claude/settings.local.json",
+    "app.py",
+    "db.py",
+    "docs/01-implantacao.md",
+    "docs/02-customizacoes-frontend.md",
+    "docs/03-customizacoes-backend.md",
+    "scheduler.py",
+    "static/style.css",
+    "templates/index.html",
+    "templates/login.html",
+    "templates/setup.html"
+  ],
+  "risk_files": [
+    {
+      "path": "db.py",
+      "importers": 4,
+      "is_hub": true,
+      "reason": "hub file imported by 4 files"
+    }
+  ],
+  "recent_events": [],
+  "next_steps": [
+    "Review downstream dependents for high-impact files before merge.",
+    "Run tests covering changed files before handoff."
+  ],
+  "open_questions": [
+    "Live watch state was unavailable; timeline may be incomplete."
+  ]
+}

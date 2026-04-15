@@ -5,6 +5,26 @@
 
 ---
 
+## Estado Validado (2026-04-15)
+
+Escopo pronto e validado em execução local:
+
+- Home com 2 semanas simultâneas (atual + próxima) e navegação por bloco semanal.
+- Exibição `Ag`/`Ex` em todos os pontos; quando não executado, exibe `Ex: —`.
+- Edição manual de pendentes com proteção de `manual_override`.
+- Janela rolante de 4 semanas no agendador.
+- Recalculo automático:
+  - segunda: próxima semana
+  - dia 1: 4 semanas do horizonte
+  - ao salvar `/setup` (base/range): pendentes futuros no novo padrão.
+
+Fora do escopo validado:
+
+- `tray_launcher.py`, scripts de build (`build_tray_exe.ps1`, `create_tray_shortcut.ps1`) e artefatos `build/`/`dist/`.
+- Dependências relacionadas ao tray (`pystray`, `Pillow`, `psutil`, `pyinstaller`) ainda não fazem parte do fluxo validado.
+
+---
+
 ## Descrição do Projeto
 
 Automatizador de batida de ponto para a plataforma web Pontotel (`https://bateponto.pontotel.com.br`). Executa os registros de forma autônoma via automação de browser (Playwright) com agendamento por APScheduler. Expõe uma interface web local via Flask para configuração e monitoramento.

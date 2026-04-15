@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Login — Ponto TolentX</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    .login-wrapper {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .login-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 40px 36px;
+      width: 100%;
+      max-width: 360px;
+    }
+    .login-brand {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: .5px;
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .login-brand span { color: var(--accent); }
+    .login-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+    .login-field label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+    }
+    .login-field input {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 14px;
+      padding: 10px 14px;
+      outline: none;
+      width: 100%;
+      transition: border-color .15s;
+    }
+    .login-field input:focus {
+      border-color: var(--accent);
+    }
+    .login-error {
+      background: rgba(239, 68, 68, .12);
+      border: 1px solid var(--red);
+      border-radius: 8px;
+      color: var(--red);
+      font-size: 13px;
+      padding: 10px 14px;
+      margin-bottom: 16px;
+    }
+    .login-submit {
+      width: 100%;
+      padding: 11px;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="login-wrapper">
+  <div class="login-card">
+    <div class="login-brand">PONTO <span>TOLENTX</span></div>
+
+    {% if error %}
+      <div class="login-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST" action="/login">
+      <div class="login-field">
+        <label for="username">Usuário</label>
+        <input
+          id="username"
+          name="username"
+          type="text"
+          autocomplete="username"
+          autofocus
+          required
+        >
+      </div>
+      <div class="login-field">
+        <label for="password">Senha</label>
+        <input
+          id="password"
+          name="password"
+          type="password"
+          autocomplete="current-password"
+          required
+        >
+      </div>
+      <button type="submit" class="btn btn-primary login-submit">Entrar</button>
+    </form>
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,50 @@
+{
+  "updated_at": "2026-04-14T21:39:06.1326644-04:00",
+  "file_count": 30,
+  "hubs": [
+    "db.py"
+  ],
+  "importers": {
+    "db.py": [
+      "holidays.py",
+      "scheduler.py",
+      "punch.py",
+      "app.py"
+    ],
+    "holidays.py": [
+      "app.py"
+    ],
+    "punch.py": [
+      "scheduler.py",
+      "app.py"
+    ],
+    "scheduler.py": [
+      "app.py"
+    ],
+    "variable.py": [
+      "auto_ponto.py"
+    ]
+  },
+  "imports": {
+    "app.py": [
+      "db.py",
+      "holidays.py",
+      "punch.py",
+      "scheduler.py"
+    ],
+    "auto_ponto.py": [
+      "variable.py"
+    ],
+    "holidays.py": [
+      "db.py"
+    ],
+    "punch.py": [
+      "db.py"
+    ],
+    "scheduler.py": [
+      "db.py",
+      "punch.py"
+    ]
+  },
+  "recent_events": null
+}

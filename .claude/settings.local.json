@@ -62,5 +62,10 @@
         ]
       }
     ]
+  },
+  "permissions": {
+    "allow": [
+      "mcp__codemap-mcp__get_importers"
+    ]
   }
 }
