@@ -20,8 +20,7 @@ Escopo pronto e validado em execução local:
 
 Fora do escopo validado:
 
-- `tray_launcher.py`, scripts de build (`build_tray_exe.ps1`, `create_tray_shortcut.ps1`) e artefatos `build/`/`dist/`.
-- Dependências relacionadas ao tray (`pystray`, `Pillow`, `psutil`, `pyinstaller`) ainda não fazem parte do fluxo validado.
+- empacotamento standalone por EXE e artefatos de build/distribuição.
 
 ---
 
@@ -49,6 +48,7 @@ Automatizador de batida de ponto para a plataforma web Pontotel (`https://batepo
 
 ```
 PONTO TOLENTX 2.0/
+├── start_pontolentx.cmd # Entrada oficial no Windows: sobe o launcher sem console
 ├── app.py              # Flask app, todas as rotas REST e abertura automática do browser
 ├── db.py               # Schema SQLite, criptografia Fernet, operações de dados
 ├── punch.py            # Automação Playwright: login, coletor, PIN, tipo de ponto
@@ -72,10 +72,12 @@ PONTO TOLENTX 2.0/
 ```bash
 pip install -r requirements.txt
 python -m playwright install chrome
-python app.py
+start_pontolentx.cmd
 ```
 
-O Flask sobe em `http://127.0.0.1:5000` e o browser abre automaticamente após 1 segundo. Se o sistema ainda não estiver configurado (sem e-mail + senha), redireciona automaticamente para `/setup`.
+Fluxo oficial no Windows: instalar dependências e executar `start_pontolentx.cmd`. O launcher sobe na bandeja do sistema, inicia o serviço local e abre o dashboard. Se o sistema ainda não estiver configurado (sem e-mail + senha), redireciona automaticamente para `/setup`.
+
+Para diagnóstico ou desenvolvimento, `python app.py` continua válido, mas não é mais o caminho principal para uso diário.
 
 ---
 

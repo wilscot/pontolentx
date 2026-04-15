@@ -379,13 +379,13 @@ Itens validados:
 
 Fora do escopo validado nesta etapa:
 
-- launcher de tray (`tray_launcher.py`), scripts de empacotamento e artefatos de build/distribuição.
+- empacotamento standalone por EXE e artefatos de build/distribuição.
 
 ---
 
 ### 2026-04-14 — Sessao 8: Tray Launcher — Icone na Bandeja do Windows
 
-**Arquivos:** `tray_launcher.py`, `create_tray_shortcut.ps1`, `requirements.txt`
+**Arquivos:** `tray_launcher.py`, `start_pontolentx.cmd`, `requirements.txt`
 
 ---
 
@@ -406,7 +406,7 @@ Implementacao completa do launcher como processo independente que gerencia o ser
 
 **Auto-start e controle de servico:**
 
-- `_bootstrap_startup`: ao abrir o atalho, tenta auto-start do servico em background e abre dashboard
+- `_bootstrap_startup`: ao abrir o launcher principal, tenta auto-start do servico em background e abre dashboard
 - `_start_service`: sobe `pythonw.exe tray_launcher.py --service` como processo separado com `PTX_DISABLE_AUTO_BROWSER=1`; abre dashboard apos porta responder
 - `_stop_service`: mata processos da porta 5000 via `psutil`, com retry e fallback para `kill` apos timeout
 - `_restart_service`: stop + start sequencial
@@ -425,14 +425,15 @@ Implementacao completa do launcher como processo independente que gerencia o ser
 
 ---
 
-#### create_tray_shortcut.ps1 — Atalho no Desktop
+#### start_pontolentx.cmd — Entrada unica no Windows
 
-Script PowerShell que cria `Ponto TolentX Launcher.lnk` no Desktop:
-- Se `dist/PontoTolentX-Launcher.exe` existir, usa o EXE
-- Senao, usa `pythonw.exe` com argumento `tray_launcher.py` (modo sem console)
-- WorkingDirectory apontando para a raiz do projeto
+Launcher em `.cmd` usado como ponto de entrada oficial no Windows:
+- resolve `pythonw.exe` pelo PATH
+- faz fallback para `pythonw.exe` ao lado de `python.exe`
+- executa `tray_launcher.py` sem abrir console
+- falha com mensagem explicita se o Python nao estiver disponivel
 
-**Destino do atalho:** `C:\Python314\pythonw.exe "...\tray_launcher.py"`
+**Fluxo oficial:** instalar `requirements.txt` e executar `start_pontolentx.cmd`
 
 ---
 
