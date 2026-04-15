@@ -615,7 +615,7 @@ def _open_browser() -> None:
 
 def run_server(open_browser: bool = True) -> None:
     db.init_db()
-    app.secret_key = db.KEY_PATH.read_bytes()
+    app.secret_key = db.get_secret_key()
 
     if db.get_config("scheduler_active") == "1":
         sched.start()

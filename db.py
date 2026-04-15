@@ -41,8 +41,13 @@ def _get_fernet_key() -> bytes:
     return key
 
 
+def get_secret_key() -> bytes:
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    return _get_fernet_key()
+
+
 def _fernet() -> Fernet:
-    return Fernet(_get_fernet_key())
+    return Fernet(get_secret_key())
 
 
 def encrypt(value: str) -> str:
@@ -66,6 +71,7 @@ def get_connection() -> sqlite3.Connection:
 
 def init_db() -> None:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    get_secret_key()
     with get_connection() as conn:
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS config (
