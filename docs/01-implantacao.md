@@ -81,6 +81,41 @@ Para diagnóstico ou desenvolvimento, `python app.py` continua válido, mas não
 
 ---
 
+## Primeira Execução em Outra Máquina
+
+Para onboarding simples em Windows:
+
+1. Baixar o projeto e extrair em uma pasta local.
+2. Abrir terminal na raiz do projeto.
+3. Rodar:
+
+```bash
+pip install -r requirements.txt
+python -m playwright install chrome
+start_pontolentx.cmd
+```
+
+Resultado esperado na primeira execução:
+
+- criação automática de `data/ponto.db`
+- criação automática de `data/.secret.key`
+- ícone do sistema na bandeja do Windows
+- abertura do dashboard em `http://127.0.0.1:5000`
+- redirecionamento para `/setup` se a conta ainda não estiver configurada
+
+## Uso Diário
+
+Depois da instalação inicial, o uso normal é apenas executar `start_pontolentx.cmd`.
+
+O launcher:
+
+- abre sem console
+- mantém o ícone na bandeja do sistema
+- tenta subir o serviço automaticamente
+- abre o dashboard no navegador
+
+---
+
 ## Banco de Dados
 
 Arquivo: `data/ponto.db` (SQLite, criado automaticamente por `db.init_db()`).
