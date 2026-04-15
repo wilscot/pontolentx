@@ -380,3 +380,69 @@ Itens validados:
 Fora do escopo validado nesta etapa:
 
 - launcher de tray (`tray_launcher.py`), scripts de empacotamento e artefatos de build/distribuição.
+
+---
+
+### 2026-04-14 — Sessao 8: Tray Launcher — Icone na Bandeja do Windows
+
+**Arquivos:** `tray_launcher.py`, `create_tray_shortcut.ps1`, `requirements.txt`
+
+---
+
+#### tray_launcher.py — Launcher com icone de bandeja (system tray)
+
+Implementacao completa do launcher como processo independente que gerencia o servico Flask via system tray do Windows usando `pystray` + `Pillow`.
+
+**Classe TrayLauncher:**
+
+- Icone de bandeja com 3 estados visuais (circulo Pillow 64x64 RGBA):
+  - vermelho = off (porta 5000 nao responde)
+  - verde = online (porta responde, scheduler parado)
+  - verde + triangulo branco = running (porta responde, scheduler ativo)
+- Menu de contexto: Start, Stop, Restart, Abrir Dashboard, Sair
+- Tooltip dinamico refletindo o estado atual
+- Monitor loop em thread daemon: poll a cada 1.5s via socket + leitura de `scheduler_active` no SQLite
+- Notificacoes toast nativas do Windows via `icon.notify()`
+
+**Auto-start e controle de servico:**
+
+- `_bootstrap_startup`: ao abrir o atalho, tenta auto-start do servico em background e abre dashboard
+- `_start_service`: sobe `pythonw.exe tray_launcher.py --service` como processo separado com `PTX_DISABLE_AUTO_BROWSER=1`; abre dashboard apos porta responder
+- `_stop_service`: mata processos da porta 5000 via `psutil`, com retry e fallback para `kill` apos timeout
+- `_restart_service`: stop + start sequencial
+- Deteccao de porta ocupada antes de start para evitar duplicatas
+
+**Modo service (`--service`):**
+
+- `run_service_mode()`: importa `app.py` e chama `run_server(open_browser=False)` com `PTX_DISABLE_AUTO_BROWSER=1`
+- Permite que o servico Flask rode como processo filho sem abrir browser duplicado
+
+**Correcao critica — callback `setup` no pystray (Windows 11):**
+
+- **Bug:** `icon.run()` era chamado sem callback `setup`, e as threads daemon (monitor, bootstrap) eram iniciadas antes do icone estar registrado no shell do Windows. Isso causava race condition: operacoes no icone (mudar estado, notify) falhavam silenciosamente porque o `Shell_NotifyIconW` com `NIM_ADD` ainda nao havia completado. Com `pythonw.exe`, erros iam para `/dev/null`.
+- **Fix:** `icon.run(setup=self._on_icon_ready)` com `icon.visible = True` explicito no callback. Threads daemon so iniciam apos o icone estar registrado e visivel.
+- **Fallback:** try/except em `run_tray_mode()` captura falhas do pystray e cai em modo service-only com logging.
+
+---
+
+#### create_tray_shortcut.ps1 — Atalho no Desktop
+
+Script PowerShell que cria `Ponto TolentX Launcher.lnk` no Desktop:
+- Se `dist/PontoTolentX-Launcher.exe` existir, usa o EXE
+- Senao, usa `pythonw.exe` com argumento `tray_launcher.py` (modo sem console)
+- WorkingDirectory apontando para a raiz do projeto
+
+**Destino do atalho:** `C:\Python314\pythonw.exe "...\tray_launcher.py"`
+
+---
+
+#### app.py — Suporte ao launcher
+
+- `run_server(open_browser=True)`: funcao extraida para permitir chamada externa pelo tray launcher
+- `PTX_DISABLE_AUTO_BROWSER`: variavel de ambiente que suprime abertura automatica do browser quando o launcher controla o ciclo de vida
+
+---
+
+#### requirements.txt — Dependencias do tray
+
+Adicionadas: `pystray>=0.19.5`, `Pillow>=10.0.0`, `psutil>=5.9.0`

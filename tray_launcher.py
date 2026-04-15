@@ -78,9 +78,13 @@ class TrayLauncher:
 
     def run(self) -> None:
         logging.info("Tray launcher started (pid=%s)", os.getpid())
+        self.icon.run(setup=self._on_icon_ready)
+
+    def _on_icon_ready(self, icon) -> None:
+        icon.visible = True
+        logging.info("Tray icon visible and ready")
         threading.Thread(target=self._monitor_loop, daemon=True).start()
         threading.Thread(target=self._bootstrap_startup, daemon=True).start()
-        self.icon.run()
 
     def _on_start_clicked(self, icon, item) -> None:
         threading.Thread(target=self._start_service, daemon=True).start()
@@ -395,8 +399,13 @@ def run_tray_mode() -> None:
         ).start()
         run_service_mode()
         return
-    launcher = TrayLauncher()
-    launcher.run()
+    try:
+        launcher = TrayLauncher()
+        logging.info("TrayLauncher created, calling icon.run()")
+        launcher.run()
+    except Exception:
+        logging.exception("Tray icon failed — falling back to service-only mode")
+        run_service_mode()
 
 
 def main() -> None:
