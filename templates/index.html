@@ -11,6 +11,9 @@
   <div class="header-brand">PONTO <span>TOLENTX</span></div>
   <nav class="header-nav">
     <a href="/setup" class="btn btn-ghost btn-sm">Configurações</a>
+    <form method="POST" action="/logout" style="margin:0">
+      <button type="submit" class="btn btn-ghost btn-sm">Sair</button>
+    </form>
   </nav>
 </header>
 
@@ -28,79 +31,108 @@
   </div>
 </div>
 
-<div class="week-container">
-  <div class="week-nav">
-    <button onclick="navigateWeek(-7)">&#8592;</button>
-    <span id="week-label">{{ days[0].date }} — {{ days[4].date }}</span>
-    <button onclick="navigateWeek(7)">&#8594;</button>
-  </div>
-
-  <div class="days-grid" id="days-grid">
-    {% for day in days %}
-    {% set is_off = day.day_type in ['feriado', 'folga', 'facultativo'] %}
-    <div class="day-card {% if day.is_today %}is-today{% elif day.is_past %}is-past{% endif %} {% if is_off %}is-{{ day.day_type }}{% endif %}"
-         data-date="{{ day.date }}">
-      <div class="day-header">
-        <div>
-          <div class="day-name">{{ day.weekday }}</div>
-          <div class="day-date">{{ day.date[8:] }}/{{ day.date[5:7] }}</div>
-        </div>
-        <div>
-          {% if day.is_today %}
-            <span class="day-badge today-badge">Hoje</span>
-          {% elif day.day_type == 'feriado' %}
-            <span class="day-badge holiday-badge" title="{{ day.notes }}" onclick="openDayModal('{{ day.date }}', '{{ day.day_type }}')">{{ day.day_type_label }}</span>
-          {% elif day.day_type == 'folga' %}
-            <span class="day-badge folga-badge" onclick="openDayModal('{{ day.date }}', '{{ day.day_type }}')">{{ day.day_type_label }}</span>
-          {% elif day.day_type == 'meio_expediente' %}
-            <span class="day-badge meio-badge" onclick="openDayModal('{{ day.date }}', '{{ day.day_type }}')">{{ day.day_type_label }}</span>
-          {% elif day.day_type == 'facultativo' %}
-            <span class="day-badge folga-badge" onclick="openDayModal('{{ day.date }}', '{{ day.day_type }}')">{{ day.day_type_label }}</span>
-          {% else %}
-            <span class="day-badge" onclick="openDayModal('{{ day.date }}', '{{ day.day_type }}')">{{ day.day_type_label }}</span>
-          {% endif %}
-        </div>
+{% macro render_day_card(day) -%}
+  {% set is_off = day.day_type in ['feriado', 'folga', 'facultativo'] %}
+  <div class="day-card {% if day.is_today %}is-today{% elif day.is_past %}is-past{% endif %} {% if is_off %}is-{{ day.day_type }}{% endif %}"
+       data-date="{{ day.date }}">
+    <div class="day-header">
+      <div>
+        <div class="day-name">{{ day.weekday }}</div>
+        <div class="day-date">{{ day.date[8:] }}/{{ day.date[5:7] }}</div>
       </div>
+      <div>
+        {% if day.is_today %}
+          <span class="day-badge today-badge">Hoje</span>
+        {% elif day.day_type == 'feriado' %}
+          <span class="day-badge holiday-badge" title="{{ day.notes }}" onclick="openDayModal('{{ day.date }}', '{{ day.day_type }}')">{{ day.day_type_label }}</span>
+        {% elif day.day_type == 'folga' %}
+          <span class="day-badge folga-badge" onclick="openDayModal('{{ day.date }}', '{{ day.day_type }}')">{{ day.day_type_label }}</span>
+        {% elif day.day_type == 'meio_expediente' %}
+          <span class="day-badge meio-badge" onclick="openDayModal('{{ day.date }}', '{{ day.day_type }}')">{{ day.day_type_label }}</span>
+        {% elif day.day_type == 'facultativo' %}
+          <span class="day-badge folga-badge" onclick="openDayModal('{{ day.date }}', '{{ day.day_type }}')">{{ day.day_type_label }}</span>
+        {% else %}
+          <span class="day-badge" onclick="openDayModal('{{ day.date }}', '{{ day.day_type }}')">{{ day.day_type_label }}</span>
+        {% endif %}
+      </div>
+    </div>
 
-      {% if is_off %}
-        <div class="no-schedule">{{ day.notes or 'Sem registro neste dia' }}</div>
-      {% else %}
-        <div class="punches-list">
-          {% for punch in day.punches %}
-          <div class="punch-row">
-            <span class="punch-label">{{ punch.label }}</span>
-            {% if punch.status == 'registrado' %}
-              <span class="punch-time-display registered">{{ punch.actual_time }}</span>
-            {% elif punch.status == 'erro' %}
-              <span class="punch-time-display error">Erro</span>
-            {% elif punch.status == 'ignorado' %}
-              <span class="punch-time-display ignored">{{ punch.scheduled_time or '--' }}</span>
-            {% elif punch.id and not day.is_past %}
-              <input class="punch-time-input"
-                     type="time"
-                     value="{{ punch.scheduled_time or '' }}"
-                     data-id="{{ punch.id }}"
-                     data-original="{{ punch.scheduled_time or '' }}"
-                     onchange="markDirty(this)"
-                     onkeydown="if(event.key==='Enter') saveTime(this)">
-              <button class="save-btn" data-id="{{ punch.id }}" onclick="saveTime(this.previousElementSibling)">Salvar</button>
+    {% if is_off %}
+      <div class="no-schedule">{{ day.notes or 'Sem registro neste dia' }}</div>
+    {% else %}
+      <div class="punches-list">
+        {% for punch in day.punches %}
+        <div class="punch-row">
+          <span class="punch-label">{{ punch.label }}</span>
+          {% if punch.status == 'registrado' %}
+            <span class="punch-time-display registered">Ag: {{ punch.scheduled_time or '--' }} · Ex: {{ punch.actual_time or '—' }}</span>
+          {% elif punch.status == 'erro' %}
+            <span class="punch-time-display error">Ag: {{ punch.scheduled_time or '--' }} · Ex: Erro</span>
+          {% elif punch.status == 'ignorado' %}
+            <span class="punch-time-display ignored">Ag: {{ punch.scheduled_time or '--' }} · Ex: Ignorado</span>
+          {% elif punch.status == 'nao_executado' %}
+            <span class="punch-time-display not-executed">Ag: {{ punch.scheduled_time or '--' }} · Ex: —</span>
+          {% elif punch.id and not day.is_past %}
+            <div class="punch-actions pending-actions">
+              <span class="punch-time-display pending">Ag: {{ punch.scheduled_time or '--' }} · Ex: —</span>
+              <button class="btn btn-ghost btn-sm edit-time-btn" onclick="toggleEdit(this)">Editar</button>
+              <div class="punch-edit-controls">
+                <input class="punch-time-input"
+                       type="time"
+                       value="{{ punch.scheduled_time or '' }}"
+                       data-id="{{ punch.id }}"
+                       data-original="{{ punch.scheduled_time or '' }}"
+                       onkeydown="if(event.key==='Enter') saveTime(this)">
+                <button class="save-btn visible" onclick="saveTime(this.previousElementSibling)">Salvar</button>
+                <button class="btn btn-ghost btn-sm cancel-edit-btn" onclick="cancelEdit(this)">Cancelar</button>
+              </div>
               {% if day.is_today %}
               <button class="btn btn-ghost btn-sm punch-now-btn"
                       style="font-size:11px;padding:2px 8px;white-space:nowrap;"
                       data-label="{{ punch.label }}"
                       onclick="punchNow('{{ punch.punch_type }}', this)">Bater agora</button>
               {% endif %}
-            {% elif punch.scheduled_time %}
-              <span class="punch-time-display">{{ punch.scheduled_time }}</span>
-            {% else %}
-              <span class="punch-time-display" style="color:var(--gray)">—</span>
-            {% endif %}
-          </div>
-          {% endfor %}
+            </div>
+          {% elif punch.scheduled_time %}
+            <span class="punch-time-display">Ag: {{ punch.scheduled_time }} · Ex: —</span>
+          {% else %}
+            <span class="punch-time-display" style="color:var(--gray)">Ag: — · Ex: —</span>
+          {% endif %}
         </div>
-      {% endif %}
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+{%- endmacro %}
+
+<div class="week-container">
+  <div class="week-nav">
+    <button onclick="navigateWeek(-7)">&#8592;</button>
+    <div class="week-labels">
+      <span id="week-label-current">{{ current_week_days[0].date }} — {{ current_week_days[4].date }}</span>
+      <span id="week-label-next">{{ next_week_days[0].date }} — {{ next_week_days[4].date }}</span>
     </div>
-    {% endfor %}
+    <button onclick="navigateWeek(7)">&#8594;</button>
+  </div>
+
+  <div class="weeks-stack">
+    <div class="week-row">
+      <div class="week-row-title">Semana atual</div>
+      <div class="days-grid" id="days-grid-current">
+        {% for day in current_week_days %}
+          {{ render_day_card(day) }}
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="week-row">
+      <div class="week-row-title">Próxima semana</div>
+      <div class="days-grid" id="days-grid-next">
+        {% for day in next_week_days %}
+          {{ render_day_card(day) }}
+        {% endfor %}
+      </div>
+    </div>
   </div>
 </div>
 
@@ -213,11 +245,25 @@
   let currentWeekStart = "{{ week_start }}";
 
   // ── time input handling ──
-  function markDirty(input) {
-    const saveBtn = input.nextElementSibling;
-    if (saveBtn && saveBtn.classList.contains('save-btn')) {
-      saveBtn.classList.add('visible');
+  function toggleEdit(btn) {
+    const actions = btn.closest('.pending-actions');
+    if (!actions) return;
+    actions.classList.add('editing');
+    const input = actions.querySelector('.punch-time-input');
+    if (input) {
+      input.focus();
+      input.select();
     }
+  }
+
+  function cancelEdit(btn) {
+    const actions = btn.closest('.pending-actions');
+    if (!actions) return;
+    const input = actions.querySelector('.punch-time-input');
+    if (input && input.dataset.original) {
+      input.value = input.dataset.original;
+    }
+    actions.classList.remove('editing');
   }
 
   async function saveTime(input) {
@@ -233,8 +279,12 @@
 
     if (res.ok) {
       input.dataset.original = value;
-      const saveBtn = input.nextElementSibling;
-      if (saveBtn) saveBtn.classList.remove('visible');
+      const actions = input.closest('.pending-actions');
+      if (actions) {
+        const text = actions.querySelector('.punch-time-display');
+        if (text) text.textContent = `Ag: ${value} · Ex: —`;
+        actions.classList.remove('editing');
+      }
       toast('Horário atualizado', 'success');
     } else {
       toast('Erro ao salvar horário', 'error');
@@ -289,12 +339,29 @@
 
     const weekData = await res.json();
     currentWeekStart = newStart;
-    document.getElementById('week-label').textContent = `${weekData[0].date} — ${weekData[4].date}`;
-    renderWeek(weekData);
+    renderWeeksBlock(weekData);
   }
 
-  function renderWeek(days) {
-    const grid = document.getElementById('days-grid');
+  function renderWeeksBlock(payload) {
+    const currentDays = payload.weeks?.[0] || [];
+    const nextDays = payload.weeks?.[1] || [];
+
+    const currentLabel = currentDays.length
+      ? `${currentDays[0].date} — ${currentDays[currentDays.length - 1].date}`
+      : '--';
+    const nextLabel = nextDays.length
+      ? `${nextDays[0].date} — ${nextDays[nextDays.length - 1].date}`
+      : '--';
+
+    document.getElementById('week-label-current').textContent = currentLabel;
+    document.getElementById('week-label-next').textContent = nextLabel;
+    renderWeek(currentDays, 'days-grid-current');
+    renderWeek(nextDays, 'days-grid-next');
+  }
+
+  function renderWeek(days, gridId) {
+    const grid = document.getElementById(gridId);
+    if (!grid) return;
     grid.innerHTML = days.map(renderDay).join('');
   }
 
@@ -333,12 +400,15 @@
   }
 
   function renderPunch(punch, day) {
+    const scheduled = punch.scheduled_time || '--';
     if (punch.status === 'registrado')
-      return `<div class="punch-row"><span class="punch-label">${punch.label}</span><span class="punch-time-display registered">${punch.actual_time}</span></div>`;
+      return `<div class="punch-row"><span class="punch-label">${punch.label}</span><span class="punch-time-display registered">Ag: ${scheduled} · Ex: ${punch.actual_time || '—'}</span></div>`;
     if (punch.status === 'erro')
-      return `<div class="punch-row"><span class="punch-label">${punch.label}</span><span class="punch-time-display error">Erro</span></div>`;
+      return `<div class="punch-row"><span class="punch-label">${punch.label}</span><span class="punch-time-display error">Ag: ${scheduled} · Ex: Erro</span></div>`;
     if (punch.status === 'ignorado')
-      return `<div class="punch-row"><span class="punch-label">${punch.label}</span><span class="punch-time-display ignored">${punch.scheduled_time || '--'}</span></div>`;
+      return `<div class="punch-row"><span class="punch-label">${punch.label}</span><span class="punch-time-display ignored">Ag: ${scheduled} · Ex: Ignorado</span></div>`;
+    if (punch.status === 'nao_executado')
+      return `<div class="punch-row"><span class="punch-label">${punch.label}</span><span class="punch-time-display not-executed">Ag: ${scheduled} · Ex: —</span></div>`;
     if (punch.id && !day.is_past) {
       const nowBtn = day.is_today
         ? `<button class="btn btn-ghost btn-sm punch-now-btn" style="font-size:11px;padding:2px 8px;white-space:nowrap;"
@@ -347,14 +417,21 @@
         : '';
       return `<div class="punch-row">
         <span class="punch-label">${punch.label}</span>
-        <input class="punch-time-input" type="time" value="${punch.scheduled_time || ''}"
-               data-id="${punch.id}" data-original="${punch.scheduled_time || ''}"
-               onchange="markDirty(this)" onkeydown="if(event.key==='Enter') saveTime(this)">
-        <button class="save-btn" onclick="saveTime(this.previousElementSibling)">Salvar</button>
-        ${nowBtn}
+        <div class="punch-actions pending-actions">
+          <span class="punch-time-display pending">Ag: ${scheduled} · Ex: —</span>
+          <button class="btn btn-ghost btn-sm edit-time-btn" onclick="toggleEdit(this)">Editar</button>
+          <div class="punch-edit-controls">
+            <input class="punch-time-input" type="time" value="${punch.scheduled_time || ''}"
+                   data-id="${punch.id}" data-original="${punch.scheduled_time || ''}"
+                   onkeydown="if(event.key==='Enter') saveTime(this)">
+            <button class="save-btn visible" onclick="saveTime(this.previousElementSibling)">Salvar</button>
+            <button class="btn btn-ghost btn-sm cancel-edit-btn" onclick="cancelEdit(this)">Cancelar</button>
+          </div>
+          ${nowBtn}
+        </div>
       </div>`;
     }
-    return `<div class="punch-row"><span class="punch-label">${punch.label}</span><span class="punch-time-display">${punch.scheduled_time || '—'}</span></div>`;
+    return `<div class="punch-row"><span class="punch-label">${punch.label}</span><span class="punch-time-display">Ag: ${punch.scheduled_time || '—'} · Ex: —</span></div>`;
   }
 
   // ── day type modal ──
@@ -413,7 +490,7 @@
     toast('Dia atualizado', 'success');
     // Reload week to reflect changes
     const res = await fetch(`/api/week/${currentWeekStart}`);
-    if (res.ok) renderWeek(await res.json());
+    if (res.ok) renderWeeksBlock(await res.json());
   }
 
   // ── holidays ──
@@ -423,7 +500,7 @@
       const data = await res.json();
       toast(`${data.imported} feriados importados`, 'success');
       const r2 = await fetch(`/api/week/${currentWeekStart}`);
-      if (r2.ok) renderWeek(await r2.json());
+      if (r2.ok) renderWeeksBlock(await r2.json());
     } else {
       toast('Erro ao importar feriados', 'error');
     }

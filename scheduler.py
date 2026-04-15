@@ -82,21 +82,21 @@ def cancel_entry_job(entry_id: int) -> None:
 
 def _daily_setup() -> None:
     """Runs at midnight: ensures today's pending punches are scheduled as APScheduler jobs."""
-    today = date.today().isoformat()
-    _ensure_week_generated(today)
+    today_obj = date.today()
+    today = today_obj.isoformat()
+    db.mark_past_pending_as_not_executed(today)
+    ensure_schedule_horizon(
+        today_obj,
+        weeks=4,
+        recalculate_all=today_obj.day == 1,
+    )
     _load_pending_jobs_for_date(today)
 
 
 def _weekly_generate() -> None:
-    monday = _get_monday(date.today()).isoformat()
-    if not db.week_has_schedule(monday):
-        generate_week_schedule(monday)
-
-
-def _ensure_week_generated(iso_date: str) -> None:
-    monday = _get_monday(date.fromisoformat(iso_date)).isoformat()
-    if not db.week_has_schedule(monday):
-        generate_week_schedule(monday)
+    today = date.today()
+    next_monday = (_get_monday(today) + timedelta(days=7)).isoformat()
+    ensure_schedule_horizon(today, weeks=4, recalc_week_start=next_monday)
 
 
 def _load_pending_jobs_for_date(iso_date: str) -> None:
@@ -137,7 +137,46 @@ def _run_punch(punch_type: str, schedule_id: int) -> None:
 
 # --- schedule generation ---
 
-def generate_week_schedule(week_start: str) -> None:
+def ensure_schedule_horizon(
+    anchor_date: date,
+    weeks: int = 4,
+    recalc_week_start: str | None = None,
+    recalculate_all: bool = False,
+) -> None:
+    base_monday = _get_monday(anchor_date)
+    for week_offset in range(weeks):
+        monday = (base_monday + timedelta(days=7 * week_offset)).isoformat()
+        if recalculate_all:
+            generate_week_schedule(monday, recalculate_existing=True)
+            continue
+        should_recalc = recalc_week_start == monday
+        if should_recalc:
+            generate_week_schedule(monday, recalculate_existing=True)
+            continue
+        if not db.week_has_schedule(monday):
+            generate_week_schedule(monday, recalculate_existing=False)
+
+
+def recalculate_future_schedule(from_date: date | None = None) -> None:
+    """
+    Recalculates all already scheduled future weeks from from_date using current base/range config.
+    Preserves manual overrides and non-pending statuses.
+    """
+    anchor = from_date or date.today()
+    anchor_iso = anchor.isoformat()
+
+    existing_weeks = db.get_future_schedule_mondays(anchor_iso)
+    for monday in existing_weeks:
+        generate_week_schedule(monday, recalculate_existing=True)
+
+    # Keep rolling planning horizon complete even if some weeks had no rows yet.
+    ensure_schedule_horizon(anchor, weeks=4, recalculate_all=False)
+
+    # If scheduler is running, realign today's jobs to new times.
+    _reschedule_pending_entries_for_date(anchor_iso)
+
+
+def generate_week_schedule(week_start: str, recalculate_existing: bool = False) -> None:
     """
     Generates and stores scheduled punch times for Mon-Fri of the given week.
     Applies randomization per punch type and avoids repeating the same minute
@@ -155,13 +194,13 @@ def generate_week_schedule(week_start: str) -> None:
             if day_type in ("feriado", "folga", "facultativo"):
                 continue
             if day_type == "meio_expediente":
-                _generate_half_day_entries(target_date, special, config)
+                _generate_half_day_entries(target_date, special, config, recalculate_existing=recalculate_existing)
                 continue
 
-        _generate_full_day_entries(target_date, config)
+        _generate_full_day_entries(target_date, config, recalculate_existing=recalculate_existing)
 
 
-def _generate_full_day_entries(target_date: str, config: dict) -> None:
+def _generate_full_day_entries(target_date: str, config: dict, recalculate_existing: bool = False) -> None:
     for punch_type in PUNCH_ORDER:
         scheduled_time = _random_time(
             base=config.get(f"{punch_type}_base", "07:30"),
@@ -169,10 +208,15 @@ def _generate_full_day_entries(target_date: str, config: dict) -> None:
             range_after=int(config.get(f"{punch_type}_range_depois", "15")),
             previous_minute=db.get_previous_minute_for_type(punch_type, target_date),
         )
-        db.insert_schedule_entry(target_date, punch_type, scheduled_time)
+        db.insert_schedule_entry(target_date, punch_type, scheduled_time, recalculate=recalculate_existing)
 
 
-def _generate_half_day_entries(target_date: str, special: dict, config: dict) -> None:
+def _generate_half_day_entries(
+    target_date: str,
+    special: dict,
+    config: dict,
+    recalculate_existing: bool = False,
+) -> None:
     import json
     custom = {}
     try:
@@ -183,7 +227,7 @@ def _generate_half_day_entries(target_date: str, special: dict, config: dict) ->
     # Custom schedule takes precedence; fallback to base times without ranges
     for punch_type in custom.get("punch_types", ["entrada", "saida"]):
         scheduled_time = custom.get(punch_type) or config.get(f"{punch_type}_base", "07:30")
-        db.insert_schedule_entry(target_date, punch_type, scheduled_time)
+        db.insert_schedule_entry(target_date, punch_type, scheduled_time, recalculate=recalculate_existing)
 
 
 def _random_time(base: str, range_before: int, range_after: int, previous_minute: int | None) -> str:
@@ -204,3 +248,15 @@ def _random_time(base: str, range_before: int, range_after: int, previous_minute
 
 def _get_monday(d: date) -> date:
     return d - timedelta(days=d.weekday())
+
+
+def _reschedule_pending_entries_for_date(iso_date: str) -> None:
+    if not is_running():
+        return
+    with db.get_connection() as conn:
+        rows = conn.execute(
+            "SELECT id FROM schedule WHERE date = ? AND status = 'pendente'",
+            (iso_date,),
+        ).fetchall()
+    for row in rows:
+        reschedule_entry(row["id"])

@@ -3,8 +3,9 @@ import os
 from pathlib import Path
 from cryptography.fernet import Fernet
 
-DB_PATH = Path(__file__).parent / "data" / "ponto.db"
-KEY_PATH = Path(__file__).parent / "data" / ".secret.key"
+BASE_DIR = Path(os.getenv("PTX_RUNTIME_DIR", Path(__file__).parent))
+DB_PATH = BASE_DIR / "data" / "ponto.db"
+KEY_PATH = BASE_DIR / "data" / ".secret.key"
 
 PUNCH_TYPES = ["entrada", "pausa", "retorno", "saida"]
 
@@ -79,6 +80,7 @@ def init_db() -> None:
                 scheduled_time TEXT NOT NULL,
                 actual_time    TEXT,
                 status         TEXT NOT NULL DEFAULT 'pendente',
+                manual_override INTEGER NOT NULL DEFAULT 0,
                 UNIQUE(date, punch_type)
             );
 
@@ -94,7 +96,9 @@ def init_db() -> None:
                 "INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)",
                 (key, value),
             )
+        _ensure_schedule_migrations(conn)
         conn.commit()
+    setup_auth()
 
 
 # --- config ---
@@ -124,6 +128,17 @@ def is_configured() -> bool:
     return bool(get_config("email") and get_config("senha_enc"))
 
 
+def _ensure_schedule_migrations(conn: sqlite3.Connection) -> None:
+    cols = {
+        row["name"]
+        for row in conn.execute("PRAGMA table_info(schedule)").fetchall()
+    }
+    if "manual_override" not in cols:
+        conn.execute(
+            "ALTER TABLE schedule ADD COLUMN manual_override INTEGER NOT NULL DEFAULT 0"
+        )
+
+
 # --- schedule ---
 
 def get_week_schedule(week_start: str) -> list[dict]:
@@ -148,10 +163,35 @@ def get_schedule_entry(entry_id: int) -> dict | None:
     return dict(row) if row else None
 
 
-def insert_schedule_entry(date: str, punch_type: str, scheduled_time: str) -> int:
+def insert_schedule_entry(date: str, punch_type: str, scheduled_time: str, recalculate: bool = False) -> int:
+    """
+    Inserts schedule entry when absent.
+    If recalculate=True, updates existing pending non-manual entries.
+    """
     with get_connection() as conn:
+        existing = conn.execute(
+            "SELECT id, status, manual_override FROM schedule WHERE date = ? AND punch_type = ?",
+            (date, punch_type),
+        ).fetchone()
+
+        if existing:
+            entry_id = existing["id"]
+            if existing["status"] != "pendente":
+                return entry_id
+            if existing["manual_override"] == 1:
+                return entry_id
+            if recalculate:
+                conn.execute(
+                    """UPDATE schedule
+                       SET scheduled_time = ?, status = 'pendente', actual_time = NULL, manual_override = 0
+                       WHERE id = ?""",
+                    (scheduled_time, entry_id),
+                )
+                conn.commit()
+            return entry_id
+
         cursor = conn.execute(
-            "INSERT OR REPLACE INTO schedule (date, punch_type, scheduled_time, status) VALUES (?, ?, ?, 'pendente')",
+            "INSERT INTO schedule (date, punch_type, scheduled_time, status, manual_override) VALUES (?, ?, ?, 'pendente', 0)",
             (date, punch_type, scheduled_time),
         )
         conn.commit()
@@ -161,7 +201,7 @@ def insert_schedule_entry(date: str, punch_type: str, scheduled_time: str) -> in
 def update_schedule_time(entry_id: int, scheduled_time: str) -> None:
     with get_connection() as conn:
         conn.execute(
-            "UPDATE schedule SET scheduled_time = ?, status = 'pendente', actual_time = NULL WHERE id = ?",
+            "UPDATE schedule SET scheduled_time = ?, status = 'pendente', actual_time = NULL, manual_override = 1 WHERE id = ?",
             (scheduled_time, entry_id),
         )
         conn.commit()
@@ -194,6 +234,22 @@ def mark_schedule_ignored(entry_id: int) -> None:
         conn.commit()
 
 
+def mark_past_pending_as_not_executed(reference_date: str) -> int:
+    """
+    Marks past pending entries as not executed.
+    reference_date must be ISO (YYYY-MM-DD) and is treated as "today".
+    """
+    with get_connection() as conn:
+        cursor = conn.execute(
+            """UPDATE schedule
+               SET status = 'nao_executado'
+               WHERE status = 'pendente' AND date < ?""",
+            (reference_date,),
+        )
+        conn.commit()
+        return cursor.rowcount
+
+
 def get_previous_minute_for_type(punch_type: str, before_date: str) -> int | None:
     """Returns the scheduled minute of the last registered entry for the punch type before the given date."""
     with get_connection() as conn:
@@ -223,6 +279,22 @@ def week_has_schedule(week_start: str) -> bool:
     return count > 0
 
 
+def get_future_schedule_mondays(from_date: str) -> list[str]:
+    """Returns distinct Monday dates (ISO) for weeks that have schedule rows on/after from_date."""
+    from datetime import date, timedelta
+    mondays = set()
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT DISTINCT date FROM schedule WHERE date >= ? ORDER BY date",
+            (from_date,),
+        ).fetchall()
+    for row in rows:
+        d = date.fromisoformat(row["date"])
+        monday = (d - timedelta(days=d.weekday())).isoformat()
+        mondays.add(monday)
+    return sorted(mondays)
+
+
 def delete_schedule_for_date(date: str) -> None:
     with get_connection() as conn:
         conn.execute("DELETE FROM schedule WHERE date = ? AND status = 'pendente'", (date,))
@@ -250,6 +322,26 @@ def delete_special_day(date: str) -> None:
     with get_connection() as conn:
         conn.execute("DELETE FROM special_days WHERE date = ?", (date,))
         conn.commit()
+
+
+# --- auth ---
+
+def setup_auth() -> None:
+    """Seeds login credentials on first run (idempotent)."""
+    from werkzeug.security import generate_password_hash
+    if not get_config("auth_username"):
+        set_config("auth_username", "wfrancischini")
+        set_config("auth_password_hash", generate_password_hash("admin123"))
+
+
+def check_credentials(username: str, password: str) -> bool:
+    """Validates username + password against the stored hash."""
+    from werkzeug.security import check_password_hash
+    stored_user = get_config("auth_username")
+    stored_hash = get_config("auth_password_hash")
+    if not stored_user or not stored_hash:
+        return False
+    return username == stored_user and check_password_hash(stored_hash, password)
 
 
 def get_special_days_for_week(week_start: str) -> dict:

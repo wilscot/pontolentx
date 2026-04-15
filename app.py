@@ -4,9 +4,10 @@ import queue
 import threading
 import webbrowser
 from datetime import date, timedelta
+from functools import wraps
 from pathlib import Path
 
-from flask import Flask, Response, jsonify, redirect, render_template, request, url_for
+from flask import Flask, Response, jsonify, redirect, render_template, request, session, url_for
 
 import db
 import scheduler as sched
@@ -39,11 +40,23 @@ DAY_TYPE_LABEL = {
 WEEKDAY_PT = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"]
 
 
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get("logged_in"):
+            return redirect(url_for("login"))
+        return f(*args, **kwargs)
+    return decorated
+
+
 def _get_monday(d: date) -> date:
     return d - timedelta(days=d.weekday())
 
 
 def _build_week_data(week_start: str) -> list[dict]:
+    today = date.today().isoformat()
+    db.mark_past_pending_as_not_executed(today)
+
     schedule_rows = {
         (r["date"], r["punch_type"]): r
         for r in db.get_week_schedule(week_start)
@@ -51,7 +64,6 @@ def _build_week_data(week_start: str) -> list[dict]:
     special_days = db.get_special_days_for_week(week_start)
 
     start = date.fromisoformat(week_start)
-    today = date.today().isoformat()
     days = []
 
     for i in range(5):
@@ -86,25 +98,60 @@ def _build_week_data(week_start: str) -> list[dict]:
     return days
 
 
+def _build_two_weeks_data(primary_week_start: str) -> dict:
+    primary_start = date.fromisoformat(primary_week_start)
+    secondary_start = (primary_start + timedelta(days=7)).isoformat()
+    return {
+        "week_start": primary_week_start,
+        "next_week_start": secondary_start,
+        "weeks": [
+            _build_week_data(primary_week_start),
+            _build_week_data(secondary_start),
+        ],
+    }
+
+
+# --- auth ---
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if session.get("logged_in"):
+        return redirect(url_for("index"))
+    error = None
+    if request.method == "POST":
+        username = request.form.get("username", "")
+        password = request.form.get("password", "")
+        if db.check_credentials(username, password):
+            session["logged_in"] = True
+            return redirect(url_for("index"))
+        error = "Usuário ou senha inválidos."
+    return render_template("login.html", error=error)
+
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+
 # --- pages ---
 
 @app.route("/")
+@login_required
 def index():
     if not db.is_configured():
         return redirect(url_for("setup"))
 
     today = date.today()
     monday = _get_monday(today).isoformat()
-
-    # Generate schedule for current week if missing
-    if not db.week_has_schedule(monday):
-        sched.generate_week_schedule(monday)
-
-    week_data = _build_week_data(monday)
+    sched.ensure_schedule_horizon(today, weeks=4)
+    weeks_data = _build_two_weeks_data(monday)
     return render_template(
         "index.html",
-        days=week_data,
+        current_week_days=weeks_data["weeks"][0],
+        next_week_days=weeks_data["weeks"][1],
         week_start=monday,
+        next_week_start=weeks_data["next_week_start"],
         scheduler_running=sched.is_running(),
         today=today.isoformat(),
         day_types=DAY_TYPE_LABEL,
@@ -112,6 +159,7 @@ def index():
 
 
 @app.route("/setup", methods=["GET", "POST"])
+@login_required
 def setup():
     profiles = detect_chrome_profiles()
     config = db.get_all_config()
@@ -119,6 +167,7 @@ def setup():
 
     if request.method == "POST":
         data = request.form
+        schedule_pattern_changed = False
 
         db.set_config("email", data.get("email", "").strip())
         db.set_config("local_coletor", data.get("local_coletor", "").strip())
@@ -142,9 +191,27 @@ def setup():
             db.set_config("pin_enc", db.encrypt(raw_pin))
 
         for punch_type in ["entrada", "pausa", "retorno", "saida"]:
-            db.set_config(f"{punch_type}_base", data.get(f"{punch_type}_base", ""))
-            db.set_config(f"{punch_type}_range_antes", data.get(f"{punch_type}_range_antes", "10"))
-            db.set_config(f"{punch_type}_range_depois", data.get(f"{punch_type}_range_depois", "15"))
+            base_key = f"{punch_type}_base"
+            before_key = f"{punch_type}_range_antes"
+            after_key = f"{punch_type}_range_depois"
+
+            new_base = data.get(base_key, "").strip()
+            new_before = data.get(before_key, "10").strip()
+            new_after = data.get(after_key, "15").strip()
+
+            if (
+                new_base != config.get(base_key, "")
+                or new_before != config.get(before_key, "10")
+                or new_after != config.get(after_key, "15")
+            ):
+                schedule_pattern_changed = True
+
+            db.set_config(base_key, new_base)
+            db.set_config(before_key, new_before)
+            db.set_config(after_key, new_after)
+
+        if schedule_pattern_changed:
+            sched.recalculate_future_schedule(date.today())
 
         return redirect(url_for("index"))
 
@@ -165,18 +232,21 @@ def setup():
 # --- scheduler API ---
 
 @app.route("/api/scheduler/start", methods=["POST"])
+@login_required
 def api_scheduler_start():
     sched.start()
     return jsonify({"running": True})
 
 
 @app.route("/api/scheduler/stop", methods=["POST"])
+@login_required
 def api_scheduler_stop():
     sched.stop()
     return jsonify({"running": False})
 
 
 @app.route("/api/scheduler/status")
+@login_required
 def api_scheduler_status():
     return jsonify({"running": sched.is_running()})
 
@@ -184,6 +254,7 @@ def api_scheduler_status():
 # --- schedule API ---
 
 @app.route("/api/schedule/<int:entry_id>", methods=["PATCH"])
+@login_required
 def api_update_schedule(entry_id: int):
     data = request.get_json()
     new_time = data.get("scheduled_time", "").strip()
@@ -204,6 +275,7 @@ def api_update_schedule(entry_id: int):
 # --- special days API ---
 
 @app.route("/api/special-day", methods=["POST"])
+@login_required
 def api_set_special_day():
     data = request.get_json()
     iso_date = data.get("date")
@@ -228,6 +300,7 @@ def api_set_special_day():
 
 
 @app.route("/api/special-day/<iso_date>", methods=["DELETE"])
+@login_required
 def api_delete_special_day(iso_date: str):
     db.delete_special_day(iso_date)
     # Regenerate normal schedule for this day if it's in the future
@@ -253,6 +326,7 @@ def _load_jobs_for_date(iso_date: str) -> None:
 # --- holidays API ---
 
 @app.route("/api/holidays/import", methods=["POST"])
+@login_required
 def api_import_holidays():
     try:
         imported, skipped = import_current_and_next_year()
@@ -264,16 +338,18 @@ def api_import_holidays():
 # --- week navigation API ---
 
 @app.route("/api/week/<week_start>")
+@login_required
 def api_week(week_start: str):
     try:
-        date.fromisoformat(week_start)
+        week_start_date = date.fromisoformat(week_start)
     except ValueError:
         return jsonify({"error": "Data inválida"}), 400
 
-    if not db.week_has_schedule(week_start):
-        sched.generate_week_schedule(week_start)
+    current_monday = _get_monday(date.today())
+    if week_start_date >= current_monday:
+        sched.ensure_schedule_horizon(week_start_date, weeks=4)
 
-    return jsonify(_build_week_data(week_start))
+    return jsonify(_build_two_weeks_data(week_start))
 
 
 # --- chrome profile setup ---
@@ -285,7 +361,8 @@ _setup_done_event = threading.Event()
 
 
 def _dedicated_profile_path() -> str:
-    return str(Path(__file__).parent / "data" / "chrome-profile")
+    base_dir = Path(os.getenv("PTX_RUNTIME_DIR", Path(__file__).parent))
+    return str(base_dir / "data" / "chrome-profile")
 
 
 def _is_main_chrome_dir(path: str) -> bool:
@@ -298,6 +375,7 @@ def _is_main_chrome_dir(path: str) -> bool:
 
 
 @app.route("/api/import-session", methods=["POST"])
+@login_required
 def api_import_session():
     """
     Copies the Cookies file and Local Storage from the personal Chrome Default profile
@@ -345,6 +423,7 @@ def api_import_session():
 
 
 @app.route("/api/open-profile", methods=["POST"])
+@login_required
 def api_open_profile():
     """
     Launches a dedicated Chrome instance via Playwright with the automation profile.
@@ -407,6 +486,7 @@ def api_open_profile():
 
 
 @app.route("/api/close-profile", methods=["POST"])
+@login_required
 def api_close_profile():
     """Signals the setup Chrome instance to close."""
     _setup_done_event.set()
@@ -416,6 +496,7 @@ def api_close_profile():
 # --- test-run API ---
 
 @app.route("/api/test-run", methods=["POST"])
+@login_required
 def api_test_run():
     global _test_run_active
 
@@ -469,6 +550,7 @@ def api_test_run():
 
 
 @app.route("/api/test-run/stream")
+@login_required
 def api_test_run_stream():
     """SSE endpoint — streams headless test-run log steps to the browser."""
     def generate():
@@ -491,6 +573,7 @@ def api_test_run_stream():
 
 
 @app.route("/api/punch-now", methods=["POST"])
+@login_required
 def api_punch_now():
     """Executes a real punch immediately for a given punch_type using today's schedule entry."""
     data = request.get_json()
@@ -530,11 +613,19 @@ def _open_browser() -> None:
     webbrowser.open("http://localhost:5000")
 
 
-if __name__ == "__main__":
+def run_server(open_browser: bool = True) -> None:
     db.init_db()
+    app.secret_key = db.KEY_PATH.read_bytes()
 
     if db.get_config("scheduler_active") == "1":
         sched.start()
 
-    threading.Thread(target=_open_browser, daemon=True).start()
+    browser_enabled = open_browser and os.getenv("PTX_DISABLE_AUTO_BROWSER") != "1"
+    if browser_enabled:
+        threading.Thread(target=_open_browser, daemon=True).start()
+
     app.run(host="127.0.0.1", port=5000, debug=False)
+
+
+if __name__ == "__main__":
+    run_server(open_browser=True)

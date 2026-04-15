@@ -36,7 +36,7 @@ PONTO TOLENTX 2.0/
 ├── holidays.py         # Importação de feriados nacionais via BrasilAPI
 ├── requirements.txt    # Dependências pip
 ├── templates/
-│   ├── index.html      # Tela principal: visão semanal Seg-Sex
+│   ├── index.html      # Tela principal: visão de 2 semanas (atual + próxima)
 │   └── setup.html      # Tela de configuração: credenciais, perfil Chrome, horários
 ├── static/
 │   └── style.css       # Tema dark, componentes visuais
@@ -102,7 +102,8 @@ Registros agendados de ponto.
 | punch_type | TEXT | entrada / pausa / retorno / saida |
 | scheduled_time | TEXT | Horário agendado (HH:MM) |
 | actual_time | TEXT | Horário real de execução |
-| status | TEXT | pendente / registrado / erro / ignorado |
+| status | TEXT | pendente / registrado / erro / ignorado / nao_executado |
+| manual_override | INTEGER | 0=automático, 1=horário editado manualmente |
 
 Constraint `UNIQUE(date, punch_type)` — apenas um registro por tipo por dia.
 
@@ -149,6 +150,8 @@ Detectado automaticamente via `%LOCALAPPDATA%/Google/Chrome/User Data`. A detec�
 - **Timezone:** America/Sao_Paulo
 - **Jobs fixos:** `daily_setup` (00:01 todo dia), `weekly_generate` (segunda-feira 00:02)
 - **Jobs de ponto:** DateTrigger no horário exato de cada entrada agendada; `misfire_grace_time=300` (5 min de tolerância)
+- **Horizonte rolante:** mantém 4 semanas de agenda (semana atual + 3 próximas)
+- **Recálculo automático:** segunda recalcula a próxima semana; no dia 1 recalcula as 4 semanas do horizonte
 - **Persistência:** estado `scheduler_active` salvo no DB; ao reiniciar `app.py` o agendador é relançado automaticamente se estava ativo
 
 ---
@@ -156,6 +159,8 @@ Detectado automaticamente via `%LOCALAPPDATA%/Google/Chrome/User Data`. A detec�
 ## Randomização de Horários
 
 Para cada tipo de ponto, o horário agendado é sorteado dentro do intervalo `[base - range_antes, base + range_depois]` em minutos. Anti-repetição: o minuto do sorteio não pode repetir o minuto do último registro do mesmo tipo de ponto no dia anterior, evitando padrão perceptível.
+
+Ao salvar novos `horário base`/`range` no `/setup`, o sistema recalcula automaticamente os pontos futuros pendentes já agendados para o novo padrão. Ajustes manuais (`manual_override=1`) são preservados.
 
 **Horários base padrão:**
 

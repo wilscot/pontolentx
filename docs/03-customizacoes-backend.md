@@ -159,3 +159,207 @@ SSE endpoint (Server-Sent Events, `text/event-stream`). Drena `_test_run_queue` 
 
 **headless_mode no POST `/setup`:**
 Salvo via `db.set_config("headless_mode", "1" if data.get("headless_mode") == "1" else "0")`.
+
+---
+
+### 2026-04-14 — Sessão 3: Perfil Chrome Dedicado, Importação de Sessão, Punch Manual e Correções
+
+**Arquivos:** `app.py`, `punch.py`, `scheduler.py`
+
+---
+
+#### Problema raiz: perfil Chrome bloqueado (exit code 21)
+
+O Chrome só permite uma instância por `user_data_dir`. Quando a automação tentava usar o diretório principal (`%LOCALAPPDATA%\Google\Chrome\User Data`) com o Chrome pessoal aberto, o processo lançado via Playwright era imediatamente encerrado com exit code 21 (profile in use).
+
+**Solução:** perfil dedicado em `data/chrome-profile/` separado do Chrome pessoal.
+
+---
+
+#### app.py — Proteção contra diretório principal do Chrome
+
+Duas funções auxiliares adicionadas:
+
+```python
+def _dedicated_profile_path() -> str
+def _is_main_chrome_dir(path: str) -> bool
+```
+
+`_is_main_chrome_dir` compara via `Path.resolve()` para lidar com variações de capitalização e separadores. Aplicada em três pontos:
+
+1. **POST `/setup`**: se o campo `chrome_profile_path` contiver o diretório principal, substitui pelo dedicado antes de salvar no DB.
+2. **GET `/setup`**: se o DB tiver o caminho errado, exibe o dedicado no formulário.
+3. **POST `/api/open-profile`**: se o path resolvido for o principal, substitui pelo dedicado antes de lançar o Playwright.
+
+---
+
+#### app.py — POST `/api/open-profile` (Playwright-based)
+
+Substituiu a abordagem anterior (`subprocess.Popen`) por `launch_persistent_context` do Playwright com o perfil dedicado. O Playwright passa `--remote-debugging-pipe` internamente, forçando um novo processo Chrome independente de qualquer instância já aberta.
+
+Ciclo de vida do Chrome de configuração:
+- Thread daemon lança `launch_persistent_context` com `headless=False`
+- Abre `https://bateponto.pontotel.com.br/#/` automaticamente
+- Mantém Chrome aberto via `threading.Event.wait(timeout=900)` (15 min)
+- `POST /api/close-profile` sinaliza o evento para fechar
+- `_setup_context` (global com lock) rastreia se há instância ativa — retorna 409 se já aberta
+
+---
+
+#### app.py — POST `/api/import-session`
+
+Copia cookies e Local Storage do perfil pessoal do Chrome para o perfil de automação, permitindo reutilizar a sessão já autenticada no Pontotel sem novo login ou registro de coletor.
+
+Arquivos copiados:
+- `Default/Network/Cookies` (SQLite com tokens de sessão)
+- `Default/Local Storage/` (armazenamento web)
+
+Criptografia DPAPI dos cookies é compatível pois ambos os perfis estão no mesmo usuário Windows.
+
+Requisito: Chrome deve estar **fechado** durante a cópia — `PermissionError` é tratado e retorna mensagem orientando o usuário a fechar o Chrome.
+
+---
+
+#### app.py — POST `/api/punch-now`
+
+Endpoint para execução imediata de um ponto real (não dry-run) sem esperar o horário agendado.
+
+Fluxo:
+1. Busca a entrada de hoje na tabela `schedule` para o `punch_type` informado
+2. Retorna 404 se não encontrada, 409 se já registrada
+3. Chama `cancel_entry_job(entry["id"])` para remover o job do APScheduler (evita duplo registro)
+4. Executa `execute_punch` em thread daemon
+5. Retorna `{"started": true}` imediatamente
+
+---
+
+#### punch.py — Proteção contra diretório principal
+
+Em `execute_punch`, após ler `chrome_profile_path` do DB, verifica se é o diretório principal do Chrome. Se for, substitui silenciosamente pelo caminho dedicado para evitar exit code 21.
+
+---
+
+#### scheduler.py — Correção de deadlock na inicialização
+
+**Bug:** `start()` adquiria `_lock` e, dentro do mesmo bloco, chamava `_daily_setup()`, que por sua vez chamava `_schedule_punch_job()`, que tentava adquirir `_lock` novamente. Threading.Lock não é reentrante — deadlock garantido quando `scheduler_active == "1"` no boot.
+
+**Fix:** `_daily_setup()` movida para fora do bloco `with _lock:` em `start()`.
+
+---
+
+#### scheduler.py — cancel_entry_job
+
+```python
+def cancel_entry_job(entry_id: int) -> None
+```
+
+Remove o job APScheduler identificado por `punch_{entry_id}` se existir. Usado pelo endpoint `punch-now` para garantir que o job automático não dispare após registro manual.
+
+---
+
+### 2026-04-14 — Sessão 4: Sistema de Autenticação Flask (Login/Logout)
+
+**Arquivos:** `db.py`, `app.py`, `templates/login.html`, `templates/index.html`, `templates/setup.html`
+
+---
+
+#### db.py — Funções de Autenticação
+
+Duas funções adicionadas ao final do arquivo:
+
+- `setup_auth()` — semeia as credenciais iniciais (`wfrancischini` / `admin123`) na tabela `config` usando `werkzeug.security.generate_password_hash`. Operação idempotente via `INSERT OR IGNORE` — não sobrescreve senha existente em execuções subsequentes. Chamada dentro de `init_db()` para garantir execução automática na primeira inicialização.
+- `check_credentials(username, password)` — lê o hash armazenado no DB e valida com `werkzeug.security.check_password_hash`. Retorna `True` apenas se usuário e senha conferem. Senha nunca é armazenada em texto plano.
+
+---
+
+#### app.py — Autenticação e Proteção de Rotas
+
+**Imports adicionados:** `session` (Flask) e `functools.wraps`.
+
+**`app.secret_key`:** configurado com os bytes da chave Fernet existente em `data/.secret.key` (`db.KEY_PATH.read_bytes()`), reutilizando infraestrutura de segurança já presente sem gerar nova dependência.
+
+**Decorator `login_required`:**
+- Verifica se `session.get("logged_in")` é verdadeiro
+- Redireciona para `GET /login` se não autenticado
+- Aplicado a todas as 14 rotas existentes — acesso total para logado, redirect para deslogado (sem roles ou permissões granulares)
+
+**Rotas adicionadas:**
+
+| Método | Rota | Descrição |
+|---|---|---|
+| GET | `/login` | Renderiza `login.html` |
+| POST | `/login` | Valida credenciais via `db.check_credentials`; define `session["logged_in"] = True` e redireciona para `/` em caso de sucesso; renderiza novamente com mensagem de erro em caso de falha |
+| POST | `/logout` | Limpa a sessão com `session.clear()` e redireciona para `/login` |
+
+---
+
+#### templates/login.html
+
+Novo template criado com tema dark consistente com o restante do app (fundo escuro, inputs e botão no padrão visual já utilizado). Exibe mensagem de erro inline quando as credenciais são rejeitadas.
+
+---
+
+#### templates/index.html e templates/setup.html
+
+Botão "Sair" adicionado ao header de ambos os templates. Implementado como formulário `POST /logout` para garantir que o logout seja sempre um request POST (não navegável via GET/URL direta).
+
+---
+
+**Motivo da mudança:** proteger o app de acesso não autorizado em rede local, onde qualquer dispositivo na mesma rede poderia acessar a interface sem restrição.
+
+---
+
+### 2026-04-15 — Sessão 5: Horizonte de 4 Semanas + Recalculo Inteligente da Agenda
+
+**Arquivos:** `db.py`, `scheduler.py`, `app.py`
+
+#### db.py — Evolução de schema e comportamento de agenda
+
+- Coluna `manual_override` adicionada na tabela `schedule`:
+  - `0` = horário automático
+  - `1` = horário ajustado manualmente pelo usuário
+- Migração automática em runtime:
+  - `_ensure_schedule_migrations(conn)` usa `PRAGMA table_info(schedule)` e executa `ALTER TABLE` quando necessário.
+- `insert_schedule_entry(..., recalculate=False)` passou a operar como upsert controlado:
+  - não toca em registros `status != 'pendente'`
+  - não sobrescreve `manual_override=1`
+  - com `recalculate=True`, atualiza apenas pendentes automáticos.
+- `update_schedule_time` marca `manual_override=1` para preservar edição manual contra recálculos futuros.
+- `mark_past_pending_as_not_executed(reference_date)` marca pendências passadas como `nao_executado`.
+- `get_future_schedule_mondays(from_date)` retorna semanas futuras já existentes no banco para recálculo em lote.
+
+#### scheduler.py — Janela rolante e recálculo automático
+
+- Nova função central:
+  - `ensure_schedule_horizon(anchor_date, weeks=4, recalc_week_start=None, recalculate_all=False)`
+  - Mantém agenda de **4 semanas** (semana atual + 3 próximas).
+- Regras de recálculo:
+  - `weekly_generate` (segunda): recalcula a **próxima semana** (`recalculate_existing=True`).
+  - `daily_setup` no dia 1º do mês: recalcula todas as 4 semanas do horizonte (`recalculate_all=True`), respeitando `manual_override`.
+- Nova função:
+  - `recalculate_future_schedule(from_date=None)`
+  - Recalcula todas as semanas futuras já agendadas para o padrão atual do `/setup`, preservando manual e histórico.
+  - Completa semanas ausentes até o horizonte de 4 semanas.
+  - Se o scheduler estiver ativo, remapeia os jobs pendentes do dia atual (`_reschedule_pending_entries_for_date`).
+
+#### app.py — API e setup alinhados ao novo motor
+
+- `index()` passou a chamar `sched.ensure_schedule_horizon(today, weeks=4)` antes de montar a home.
+- Payload da navegação semanal foi expandido:
+  - `_build_two_weeks_data(week_start)` retorna:
+    - `week_start`
+    - `next_week_start`
+    - `weeks` (lista com 2 semanas, cada uma com 5 dias)
+- `GET /api/week/<week_start>` agora retorna esse payload de duas semanas.
+- `POST /setup`:
+  - detecta mudança real em `*_base`, `*_range_antes`, `*_range_depois`
+  - quando houver mudança, chama `sched.recalculate_future_schedule(date.today())`.
+
+---
+
+### 2026-04-15 — Sessão 6: Ajuste de Exibição de Não Executado
+
+**Arquivos:** `templates/index.html` (impacto funcional ligado ao payload backend já existente)
+
+- A semântica de “não executado” permaneceu no backend (`status='nao_executado'`), mas a UI deixou de exibir texto `"Nulo"` e passou a exibir `Ex: —`.
+- Nenhuma alteração de contrato API para esse ajuste visual.

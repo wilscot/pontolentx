@@ -132,3 +132,99 @@ Modal dedicado ao dry-run com dois modos distintos de operação.
 - Função `toast(msg, type)` cria elemento temporário (3,5s) no container `#toast-container`
 - Tipos: `success` (verde) e `error` (vermelho)
 - Usadas em todas as ações assíncronas: salvar horário, atualizar dia, importar feriados
+
+---
+
+### 2026-04-14 — Sessão 3: Perfil Chrome Dedicado + Botão "Bater agora"
+
+**Arquivos:** `templates/setup.html`, `templates/index.html`
+
+---
+
+#### setup.html — Perfil Chrome Dedicado
+
+Seção "Perfil Chrome" reestruturada com duas opções de configuração inicial:
+
+**Botão "Abrir Chrome para configurar"** (existente, mantido):
+- Abre instância Playwright com o perfil dedicado via `POST /api/open-profile`
+- Ao retornar `ok`, exibe botão "Fechar Chrome" e atualiza hint com instruções de login e registro de coletor
+- `closeProfileSetup()` chama `POST /api/close-profile` e restaura UI ao estado inicial
+
+**Botão "Importar sessão do Chrome"** (novo):
+- Chama `POST /api/import-session`
+- Copia cookies e Local Storage do perfil pessoal para o perfil de automação
+- Feedback inline no hint: sucesso (verde) ou erro com instrução de fechar Chrome (vermelho)
+- Ação mais rápida que o fluxo manual — indicada quando o usuário já tem sessão ativa no Chrome pessoal
+
+Hint informativo atualizado para descrever as duas opções (Opção A: importar sessão / Opção B: abrir Chrome manual).
+
+---
+
+#### index.html — Botão "Bater agora"
+
+Adicionado a cada linha de ponto **pendente do dia de hoje** nos cards da visão semanal.
+
+Renderizado tanto no template Jinja2 (carga inicial) quanto na função JS `renderPunch` (navegação entre semanas via AJAX).
+
+Comportamento:
+- Exibe `confirm()` nativo antes de executar (ponto real, não dry-run)
+- Desabilita o botão e exibe "..." durante a chamada
+- Chama `POST /api/punch-now` com o `punch_type` da linha
+- Em caso de sucesso: toast "Registro iniciado" + `location.reload()` após 25s (tempo para o Playwright concluir)
+- Em caso de erro: toast com a mensagem do servidor + reabilita botão
+
+**Botão "Iniciar" agendador — tratamento de erro:**
+- `toggleScheduler()` envolto em try/catch
+- Falha na requisição ou status não-ok exibe toast com mensagem de erro em vez de silenciar
+
+---
+
+### 2026-04-15 — Sessão 4: Home com 2 Semanas + Exibição Completa de Agendamento
+
+**Arquivos:** `templates/index.html`, `static/style.css`
+
+#### Nova composição da tela principal
+
+- A home passou de 1 grade semanal para um bloco com **2 linhas**:
+  - `Semana atual`
+  - `Próxima semana`
+- Navegação por setas mantém deslocamento de 7 dias, mas renderiza sempre o par de semanas (atual + próxima do bloco).
+- Labels no topo foram divididas em duas linhas:
+  - `#week-label-current`
+  - `#week-label-next`
+
+#### Exibição de horários (`Ag`/`Ex`)
+
+- Todas as linhas de ponto mostram comparação direta:
+  - `Ag: HH:MM · Ex: ...`
+- Para pontos sem execução, `Ex` deixou de exibir `"Nulo"` e passou a exibir **traço**: `Ex: —`.
+- Estados visuais mantidos:
+  - `registered` (verde)
+  - `error` (vermelho)
+  - `ignored` (cinza riscado)
+  - `not-executed` (amarelo)
+
+#### Edição de horário pendente (novo fluxo)
+
+- O pendente futuro não usa mais o `<input type="time">` como elemento principal de leitura.
+- Fluxo novo:
+  1. Exibe `Ag: HH:MM · Ex: —`
+  2. Botão `Editar`
+  3. Ao clicar, abre controles inline: `input time + Salvar + Cancelar`
+- Após salvar:
+  - Atualiza texto exibido sem recarregar (`Ag: novo_horario · Ex: —`)
+  - Fecha modo de edição inline.
+
+#### Renderização dinâmica via JS
+
+- Substituição de `renderWeek(days)` único por:
+  - `renderWeeksBlock(payload)` para o payload com duas semanas
+  - `renderWeek(days, gridId)` para cada grade (`current` e `next`)
+- `navigateWeek`, recarregamento pós `saveDayType` e pós `importHolidays` foram adaptados para atualizar as duas grades.
+
+#### Responsividade CSS
+
+- Breakpoints adicionados para grades:
+  - até `1800px`: 3 colunas
+  - até `1280px`: 2 colunas
+  - até `768px`: 1 coluna + ajustes de paddings/header/scheduler-bar
