@@ -152,6 +152,33 @@ a:hover { text-decoration: underline; }
 .punch-time-display.not-executed { color: var(--yellow); }
 .punch-time-display.pending { color: var(--text); }
 
+.day-balance {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.day-balance-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: .45px;
+}
+
+.day-balance-value {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.day-balance-extra .day-balance-value { color: var(--green); }
+.day-balance-negative .day-balance-value { color: #fca5a5; }
+.day-balance-neutral .day-balance-value { color: var(--text); }
+
 .punch-time-input {
   width: 86px; background: var(--surface2); border: 1px solid var(--border);
   color: var(--text); border-radius: 6px; padding: 4px 8px;

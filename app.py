@@ -38,6 +38,7 @@ DAY_TYPE_LABEL = {
 }
 
 WEEKDAY_PT = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"]
+DAILY_WORK_TARGET_MINUTES = 8 * 60
 
 
 def login_required(f):
@@ -51,6 +52,84 @@ def login_required(f):
 
 def _get_monday(d: date) -> date:
     return d - timedelta(days=d.weekday())
+
+
+def _time_to_minutes(time_str: str | None) -> int | None:
+    if not time_str:
+        return None
+    try:
+        hour, minute = map(int, time_str.split(":"))
+    except (TypeError, ValueError):
+        return None
+    return hour * 60 + minute
+
+
+def _format_duration_label(total_minutes: int) -> str:
+    hours, minutes = divmod(abs(total_minutes), 60)
+    return f"{hours:02d}:{minutes:02d}"
+
+
+def _build_day_balance(punches: list[dict]) -> dict:
+    actual_by_type = {
+        punch["punch_type"]: _time_to_minutes(punch.get("actual_time"))
+        for punch in punches
+    }
+
+    entrada = actual_by_type.get("entrada")
+    pausa = actual_by_type.get("pausa")
+    retorno = actual_by_type.get("retorno")
+    saida = actual_by_type.get("saida")
+
+    worked_minutes = None
+
+    # Only closed days contribute to the balance: a full workday or a direct entrada->saida pair.
+    if (
+        entrada is not None
+        and pausa is not None
+        and retorno is not None
+        and saida is not None
+        and pausa > entrada
+        and saida > retorno
+    ):
+        worked_minutes = (pausa - entrada) + (saida - retorno)
+    elif (
+        entrada is not None
+        and saida is not None
+        and pausa is None
+        and retorno is None
+        and saida > entrada
+    ):
+        worked_minutes = saida - entrada
+
+    if worked_minutes is None:
+        return {
+            "worked_minutes": None,
+            "balance_minutes": None,
+            "balance_label": None,
+            "balance_title": None,
+            "balance_type": None,
+            "show_balance": False,
+        }
+
+    balance_minutes = worked_minutes - DAILY_WORK_TARGET_MINUTES
+    if balance_minutes > 0:
+        balance_title = "Hora extra"
+        balance_type = "extra"
+    elif balance_minutes < 0:
+        balance_title = "Horas devendo"
+        balance_type = "negative"
+    else:
+        balance_title = "Saldo do dia"
+        balance_type = "neutral"
+
+    return {
+        "worked_minutes": worked_minutes,
+        "balance_minutes": balance_minutes,
+        "balance_label": _format_duration_label(balance_minutes),
+        "balance_title": balance_title,
+        "balance_type": balance_type,
+        "show_balance": True,
+    }
 
 
 def _build_week_data(week_start: str) -> list[dict]:
@@ -84,6 +163,7 @@ def _build_week_data(week_start: str) -> list[dict]:
                 "status": entry["status"] if entry else None,
             })
 
+        balance = _build_day_balance(punches)
         days.append({
             "date": d,
             "weekday": WEEKDAY_PT[i],
@@ -93,6 +173,7 @@ def _build_week_data(week_start: str) -> list[dict]:
             "day_type_label": DAY_TYPE_LABEL.get(day_type, day_type),
             "notes": notes,
             "punches": punches,
+            **balance,
         })
 
     return days

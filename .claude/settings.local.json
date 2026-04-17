@@ -1,4 +1,10 @@
 {
+  "permissions": {
+    "allow": [
+      "mcp__codemap-mcp__get_importers",
+      "Bash(python -m py_compile tray_launcher.py)"
+    ]
+  },
   "hooks": {
     "PostToolUse": [
       {
@@ -61,11 +67,6 @@
           }
         ]
       }
-    ]
-  },
-  "permissions": {
-    "allow": [
-      "mcp__codemap-mcp__get_importers"
     ]
   }
 }

@@ -31,6 +31,15 @@
   </div>
 </div>
 
+{% macro render_day_balance(day) -%}
+  {% if day.show_balance %}
+    <div class="day-balance day-balance-{{ day.balance_type }}">
+      <span class="day-balance-label">{{ day.balance_title }}</span>
+      <span class="day-balance-value">{{ day.balance_label }}</span>
+    </div>
+  {% endif %}
+{%- endmacro %}
+
 {% macro render_day_card(day) -%}
   {% set is_off = day.day_type in ['feriado', 'folga', 'facultativo'] %}
   <div class="day-card {% if day.is_today %}is-today{% elif day.is_past %}is-past{% endif %} {% if is_off %}is-{{ day.day_type }}{% endif %}"
@@ -102,6 +111,7 @@
         {% endfor %}
       </div>
     {% endif %}
+    {{ render_day_balance(day) }}
   </div>
 {%- endmacro %}
 
@@ -378,6 +388,7 @@
     const bodyHtml  = isOff
       ? `<div class="no-schedule">${day.notes || 'Sem registro neste dia'}</div>`
       : `<div class="punches-list">${day.punches.map(p => renderPunch(p, day)).join('')}</div>`;
+    const balanceHtml = renderBalance(day);
 
     return `
       <div class="${classes}" data-date="${day.date}">
@@ -389,6 +400,16 @@
           <div>${badgeHtml}</div>
         </div>
         ${bodyHtml}
+        ${balanceHtml}
+      </div>`;
+  }
+
+  function renderBalance(day) {
+    if (!day.show_balance) return '';
+    return `
+      <div class="day-balance day-balance-${day.balance_type}">
+        <span class="day-balance-label">${day.balance_title}</span>
+        <span class="day-balance-value">${day.balance_label}</span>
       </div>`;
   }
 
