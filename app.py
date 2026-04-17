@@ -11,8 +11,18 @@ from flask import Flask, Response, jsonify, redirect, render_template, request, 
 
 import db
 import scheduler as sched
+from browser_profiles import (
+    get_browser_label,
+    get_dedicated_profile_path,
+    get_personal_default_profile_dir,
+    get_playwright_channel,
+    get_profile_config_key,
+    is_main_user_data_dir,
+    iter_browser_keys,
+    normalize_browser,
+)
 from holidays import import_current_and_next_year
-from punch import detect_chrome_profiles, execute_punch, DryRunAborted
+from punch import execute_punch, DryRunAborted
 from scheduler import cancel_entry_job
 
 # Queue used by headless test-run to stream log steps to the SSE endpoint
@@ -38,6 +48,22 @@ DAY_TYPE_LABEL = {
 }
 
 WEEKDAY_PT = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"]
+MONTH_ABBR_PT = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"]
+MONTH_FULL_PT = [
+    "janeiro",
+    "fevereiro",
+    "março",
+    "abril",
+    "maio",
+    "junho",
+    "julho",
+    "agosto",
+    "setembro",
+    "outubro",
+    "novembro",
+    "dezembro",
+]
+OFF_DAY_TYPES = {"feriado", "folga", "facultativo"}
 DAILY_WORK_TARGET_MINUTES = 8 * 60
 
 
@@ -67,6 +93,41 @@ def _time_to_minutes(time_str: str | None) -> int | None:
 def _format_duration_label(total_minutes: int) -> str:
     hours, minutes = divmod(abs(total_minutes), 60)
     return f"{hours:02d}:{minutes:02d}"
+
+
+def _format_duration_human(total_minutes: int, include_plus: bool = False) -> str:
+    sign = ""
+    if total_minutes < 0:
+        sign = "-"
+    elif include_plus and total_minutes > 0:
+        sign = "+"
+    hours, minutes = divmod(abs(total_minutes), 60)
+    return f"{sign}{hours}h {minutes:02d}m"
+
+
+def _format_range_label(start: date, end: date) -> str:
+    return f"{start.day:02d}/{start.month:02d} — {end.day:02d}/{end.month:02d}"
+
+
+def _format_nav_range_label(start: date, end: date) -> str:
+    return (
+        f"{start.day:02d} {MONTH_ABBR_PT[start.month - 1]} — "
+        f"{end.day:02d} {MONTH_ABBR_PT[end.month - 1]}"
+    )
+
+
+def _format_nav_subtitle(start: date, end: date) -> str:
+    if start.year == end.year and start.month == end.month:
+        return f"2 semanas · {MONTH_FULL_PT[start.month - 1]} {start.year}"
+    if start.year == end.year:
+        return (
+            f"2 semanas · {MONTH_ABBR_PT[start.month - 1]}/"
+            f"{MONTH_ABBR_PT[end.month - 1]} {start.year}"
+        )
+    return (
+        f"2 semanas · {MONTH_ABBR_PT[start.month - 1]}/{start.year} — "
+        f"{MONTH_ABBR_PT[end.month - 1]}/{end.year}"
+    )
 
 
 def _build_day_balance(punches: list[dict]) -> dict:
@@ -179,16 +240,122 @@ def _build_week_data(week_start: str) -> list[dict]:
     return days
 
 
+def _find_next_punch(days: list[dict]) -> dict:
+    today_iso = date.today().isoformat()
+    for day in days:
+        if day["date"] < today_iso:
+            continue
+        for punch in day["punches"]:
+            if not punch.get("scheduled_time"):
+                continue
+            if punch.get("status") in {"registrado", "ignorado", "erro", "nao_executado"}:
+                continue
+            when_label = "hoje" if day["is_today"] else f"{day['weekday']} · {day['date'][8:]}/{day['date'][5:7]}"
+            return {
+                "value": punch["scheduled_time"],
+                "hint": f"{punch['label']} · {when_label}",
+            }
+
+    return {
+        "value": "--",
+        "hint": "sem próximos pontos na janela exibida",
+    }
+
+
+def _build_dashboard_summary(weeks: list[list[dict]]) -> dict:
+    all_days = [day for week in weeks for day in week]
+    scheduled_punches = [
+        punch
+        for day in all_days
+        for punch in day["punches"]
+        if punch.get("scheduled_time")
+    ]
+    executed_count = sum(punch.get("status") == "registrado" for punch in scheduled_punches)
+
+    closed_days = [day for day in all_days if day.get("worked_minutes") is not None]
+    worked_minutes = sum(day["worked_minutes"] for day in closed_days) if closed_days else 0
+    expected_minutes = DAILY_WORK_TARGET_MINUTES * len(closed_days)
+    balance_minutes = sum(day["balance_minutes"] for day in closed_days) if closed_days else 0
+    next_punch = _find_next_punch(all_days)
+
+    if balance_minutes > 0:
+        balance_accent = "overtime"
+        balance_hint = "saldo positivo"
+    elif balance_minutes < 0:
+        balance_accent = "danger"
+        balance_hint = "horas devendo"
+    else:
+        balance_accent = "muted"
+        balance_hint = "saldo zerado"
+
+    worked_hint = (
+        f"de {_format_duration_human(expected_minutes)} previstas"
+        if closed_days
+        else "sem dias concluídos"
+    )
+
+    return {
+        "metrics": [
+            {
+                "label": "Pontos batidos",
+                "value": f"{executed_count}/{len(scheduled_punches)}",
+                "hint": "na janela exibida",
+                "accent": "success",
+            },
+            {
+                "label": "Horas trabalhadas",
+                "value": _format_duration_human(worked_minutes),
+                "hint": worked_hint,
+                "accent": "muted",
+            },
+            {
+                "label": "Banco de horas",
+                "value": _format_duration_human(balance_minutes, include_plus=True),
+                "hint": balance_hint,
+                "accent": balance_accent,
+            },
+            {
+                "label": "Próximo ponto",
+                "value": next_punch["value"],
+                "hint": next_punch["hint"],
+                "accent": "primary",
+            },
+        ]
+    }
+
+
+def _build_dashboard_labels(primary_start: date, secondary_start: date) -> dict:
+    primary_end = primary_start + timedelta(days=4)
+    secondary_end = secondary_start + timedelta(days=4)
+    return {
+        "nav_range": _format_nav_range_label(primary_start, secondary_end),
+        "nav_subtitle": _format_nav_subtitle(primary_start, secondary_end),
+        "weeks": [
+            {
+                "title": "Semana atual",
+                "range": _format_range_label(primary_start, primary_end),
+            },
+            {
+                "title": "Próxima semana",
+                "range": _format_range_label(secondary_start, secondary_end),
+            },
+        ],
+    }
+
+
 def _build_two_weeks_data(primary_week_start: str) -> dict:
     primary_start = date.fromisoformat(primary_week_start)
     secondary_start = (primary_start + timedelta(days=7)).isoformat()
+    weeks = [
+        _build_week_data(primary_week_start),
+        _build_week_data(secondary_start),
+    ]
     return {
         "week_start": primary_week_start,
         "next_week_start": secondary_start,
-        "weeks": [
-            _build_week_data(primary_week_start),
-            _build_week_data(secondary_start),
-        ],
+        "weeks": weeks,
+        "labels": _build_dashboard_labels(primary_start, date.fromisoformat(secondary_start)),
+        "summary": _build_dashboard_summary(weeks),
     }
 
 
@@ -226,23 +393,18 @@ def index():
     today = date.today()
     monday = _get_monday(today).isoformat()
     sched.ensure_schedule_horizon(today, weeks=4)
-    weeks_data = _build_two_weeks_data(monday)
+    dashboard_data = _build_two_weeks_data(monday)
     return render_template(
         "index.html",
-        current_week_days=weeks_data["weeks"][0],
-        next_week_days=weeks_data["weeks"][1],
-        week_start=monday,
-        next_week_start=weeks_data["next_week_start"],
+        dashboard=dashboard_data,
         scheduler_running=sched.is_running(),
         today=today.isoformat(),
-        day_types=DAY_TYPE_LABEL,
     )
 
 
 @app.route("/setup", methods=["GET", "POST"])
 @login_required
 def setup():
-    profiles = detect_chrome_profiles()
     config = db.get_all_config()
     error = None
 
@@ -250,18 +412,16 @@ def setup():
         data = request.form
         schedule_pattern_changed = False
 
+        browser_channel = normalize_browser(data.get("browser_channel"))
         db.set_config("email", data.get("email", "").strip())
         db.set_config("local_coletor", data.get("local_coletor", "").strip())
+        db.set_config("browser_channel", browser_channel)
         db.set_config("chrome_profile_name", "Default")
         db.set_config("headless_mode", "1" if data.get("headless_mode") == "1" else "0")
 
-        # Use the dedicated automation profile path (editable by user)
-        # Silently replace main Chrome User Data dir — it's always locked
-        custom_path = data.get("chrome_profile_path", "").strip()
-        if custom_path and not _is_main_chrome_dir(custom_path):
-            db.set_config("chrome_profile_path", custom_path)
-        elif _is_main_chrome_dir(custom_path):
-            db.set_config("chrome_profile_path", _dedicated_profile_path())
+        for browser in iter_browser_keys():
+            config_key = get_profile_config_key(browser)
+            db.set_config(config_key, _sanitize_profile_path(browser, data.get(config_key)))
 
         raw_senha = data.get("senha", "").strip()
         if raw_senha:
@@ -296,14 +456,13 @@ def setup():
 
         return redirect(url_for("index"))
 
-    # Always show a usable profile path — replace main Chrome dir if it slipped into DB
-    dedicated_default = _dedicated_profile_path()
-    if not config.get("chrome_profile_path") or _is_main_chrome_dir(config.get("chrome_profile_path", "")):
-        config["chrome_profile_path"] = dedicated_default
+    config["browser_channel"] = normalize_browser(config.get("browser_channel"))
+    for browser in iter_browser_keys():
+        config_key = get_profile_config_key(browser)
+        config[config_key] = _sanitize_profile_path(browser, config.get(config_key, ""))
 
     return render_template(
         "setup.html",
-        profiles=profiles,
         config=config,
         error=error,
         punch_labels=PUNCH_LABEL,
@@ -433,7 +592,7 @@ def api_week(week_start: str):
     return jsonify(_build_two_weeks_data(week_start))
 
 
-# --- chrome profile setup ---
+# --- browser profile setup ---
 
 # Holds the active Playwright setup context so it can be closed on demand
 _setup_context = None
@@ -441,36 +600,46 @@ _setup_context_lock = threading.Lock()
 _setup_done_event = threading.Event()
 
 
-def _dedicated_profile_path() -> str:
-    base_dir = Path(os.getenv("PTX_RUNTIME_DIR", Path(__file__).parent))
-    return str(base_dir / "data" / "chrome-profile")
+def _sanitize_profile_path(browser: str, path: str | None) -> str:
+    sanitized = (path or "").strip()
+    if not sanitized or is_main_user_data_dir(sanitized, browser):
+        return get_dedicated_profile_path(browser)
+    return sanitized
 
 
-def _is_main_chrome_dir(path: str) -> bool:
-    """Returns True if the path is the main Chrome User Data directory (always locked)."""
-    main = Path(os.environ.get("LOCALAPPDATA", "")) / "Google" / "Chrome" / "User Data"
-    try:
-        return Path(path).resolve() == main.resolve()
-    except Exception:
-        return False
+def _locked_browser_message(source_label: str, target_label: str) -> str:
+    if source_label == target_label:
+        return f"Feche o {source_label} completamente antes de importar a sessão."
+    return f"Feche o {source_label} e o {target_label} completamente antes de importar a sessão."
 
 
 @app.route("/api/import-session", methods=["POST"])
 @login_required
 def api_import_session():
     """
-    Copies the Cookies file and Local Storage from the personal Chrome Default profile
-    into the automation profile so the existing Pontotel session is reused.
-    Chrome must be closed during the copy — the Cookies file is locked while Chrome runs.
+    Copies Cookies and Local Storage from the personal browser profile into the
+    selected automation profile so the existing Pontotel session can be reused.
     """
     import shutil
 
-    src_base = Path(os.environ.get("LOCALAPPDATA", "")) / "Google" / "Chrome" / "User Data" / "Default"
-    automation_profile = db.get_config("chrome_profile_path") or _dedicated_profile_path()
+    body = request.get_json(silent=True) or {}
+    source_browser = normalize_browser(body.get("source_browser") or body.get("browser"))
+    target_browser = normalize_browser(body.get("target_browser") or db.get_config("browser_channel"))
+    source_label = get_browser_label(source_browser)
+    target_label = get_browser_label(target_browser)
+    target_profile_key = get_profile_config_key(target_browser)
+
+    src_base = get_personal_default_profile_dir(source_browser)
+    automation_profile = _sanitize_profile_path(
+        target_browser,
+        body.get("profile_path") or db.get_config(target_profile_key),
+    )
     dst_base = Path(automation_profile) / "Default"
 
     if not src_base.exists():
-        return jsonify({"error": "Perfil padrão do Chrome não encontrado."}), 404
+        return jsonify({"error": f"Perfil padrão do {source_label} não encontrado."}), 404
+
+    db.set_config(target_profile_key, automation_profile)
 
     errors = []
 
@@ -482,7 +651,7 @@ def api_import_session():
             dst_net.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src_cookies, dst_net / "Cookies")
         except PermissionError:
-            return jsonify({"error": "Feche o Google Chrome completamente antes de importar a sessão."}), 409
+            return jsonify({"error": _locked_browser_message(source_label, target_label)}), 409
         except Exception as exc:
             errors.append(f"Cookies: {exc}")
 
@@ -493,37 +662,46 @@ def api_import_session():
             dst_ls = dst_base / "Local Storage"
             shutil.copytree(src_ls, dst_ls, dirs_exist_ok=True)
         except PermissionError:
-            return jsonify({"error": "Feche o Google Chrome completamente antes de importar a sessão."}), 409
+            return jsonify({"error": _locked_browser_message(source_label, target_label)}), 409
         except Exception as exc:
             errors.append(f"Local Storage: {exc}")
 
     if errors:
         return jsonify({"error": "Erros parciais: " + "; ".join(errors)}), 500
 
-    return jsonify({"ok": True})
+    return jsonify(
+        {
+            "ok": True,
+            "profile_path": automation_profile,
+            "source_browser": source_browser,
+            "source_label": source_label,
+            "target_browser": target_browser,
+            "target_label": target_label,
+        }
+    )
 
 
 @app.route("/api/open-profile", methods=["POST"])
 @login_required
 def api_open_profile():
     """
-    Launches a dedicated Chrome instance via Playwright with the automation profile.
-    Playwright's --remote-debugging-pipe forces a new process regardless of other
-    Chrome instances already running, avoiding Chrome's single-instance delegation.
+    Launches a dedicated browser instance via Playwright with the automation
+    profile. Playwright's remote debugging pipe forces a new process regardless
+    of other browser instances already running.
     """
     global _setup_context
 
     with _setup_context_lock:
         if _setup_context is not None:
-            return jsonify({"error": "Chrome de configuração já está aberto"}), 409
+            return jsonify({"error": "Já existe um navegador de configuração aberto."}), 409
 
     body = request.get_json(silent=True) or {}
-    profile_path = body.get("profile_path") or db.get_config("chrome_profile_path")
-    if not profile_path or _is_main_chrome_dir(profile_path):
-        # Fall back to dedicated path — main Chrome User Data is always locked by running Chrome
-        profile_path = _dedicated_profile_path()
+    browser = normalize_browser(body.get("browser") or db.get_config("browser_channel"))
+    browser_label = get_browser_label(browser)
+    config_key = get_profile_config_key(browser)
+    profile_path = _sanitize_profile_path(browser, body.get("profile_path") or db.get_config(config_key))
 
-    db.set_config("chrome_profile_path", profile_path)
+    db.set_config(config_key, profile_path)
     Path(profile_path).mkdir(parents=True, exist_ok=True)
     _setup_done_event.clear()
 
@@ -531,23 +709,23 @@ def api_open_profile():
         global _setup_context
         try:
             from playwright.sync_api import sync_playwright
-            print(f"[setup-browser] Iniciando Playwright com perfil: {profile_path}")
+            print(f"[setup-browser] Iniciando {browser_label} com perfil: {profile_path}")
             with sync_playwright() as pw:
                 context = pw.chromium.launch_persistent_context(
                     user_data_dir=profile_path,
-                    channel="chrome",
+                    channel=get_playwright_channel(browser),
                     headless=False,
                     args=["--profile-directory=Default"],
                     no_viewport=True,
                 )
-                print("[setup-browser] Chrome aberto com sucesso.")
+                print(f"[setup-browser] {browser_label} aberto com sucesso.")
                 page = context.new_page()
                 page.goto("https://bateponto.pontotel.com.br/#/")
 
                 with _setup_context_lock:
                     _setup_context = context
 
-                # Keep Chrome open until user signals done or 15 min timeout
+                # Keep the setup browser open until user signals done or 15 min timeout
                 _setup_done_event.wait(timeout=900)
 
                 try:
@@ -563,13 +741,20 @@ def api_open_profile():
                 _setup_context = None
 
     threading.Thread(target=run_setup_browser, daemon=True).start()
-    return jsonify({"ok": True, "profile_path": profile_path})
+    return jsonify(
+        {
+            "ok": True,
+            "browser": browser,
+            "browser_label": browser_label,
+            "profile_path": profile_path,
+        }
+    )
 
 
 @app.route("/api/close-profile", methods=["POST"])
 @login_required
 def api_close_profile():
-    """Signals the setup Chrome instance to close."""
+    """Signals the active setup browser instance to close."""
     _setup_done_event.set()
     return jsonify({"ok": True})
 
@@ -615,7 +800,7 @@ def api_test_run():
         return jsonify({"started": True, "mode": "headless"})
 
     else:
-        # Visual mode: run in background thread, user interacts with Chrome window
+        # Visual mode: run in background thread, user interacts with the browser window
         def run_visual_test():
             global _test_run_active
             try:

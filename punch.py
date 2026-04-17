@@ -8,6 +8,14 @@ from typing import Callable
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 
 import db
+from browser_profiles import (
+    get_browser_label,
+    get_dedicated_profile_path,
+    get_playwright_channel,
+    get_profile_config_key,
+    is_main_user_data_dir,
+    normalize_browser,
+)
 
 
 PONTOTEL_URL = "https://bateponto.pontotel.com.br/#/"
@@ -172,18 +180,15 @@ def execute_punch(
     senha = db.decrypt(db.get_config("senha_enc"))
     local_coletor = db.get_config("local_coletor")
     pin = db.decrypt(db.get_config("pin_enc"))
-    user_data_dir = db.get_config("chrome_profile_path")
+    browser = normalize_browser(db.get_config("browser_channel"))
+    browser_label = get_browser_label(browser)
+    user_data_dir = db.get_config(get_profile_config_key(browser)) or get_dedicated_profile_path(browser)
     profile_name = db.get_config("chrome_profile_name")
     headless = db.get_config("headless_mode") == "1"
 
-    # Prevent using the main Chrome User Data dir — it's always locked by a running Chrome instance
-    main_chrome = Path(os.environ.get("LOCALAPPDATA", "")) / "Google" / "Chrome" / "User Data"
-    try:
-        is_main = user_data_dir and Path(user_data_dir).resolve() == main_chrome.resolve()
-    except Exception:
-        is_main = False
-    if is_main:
-        user_data_dir = str(Path(__file__).parent / "data" / "chrome-profile")
+    # Prevent using the browser's main User Data dir — it's always locked by a running personal instance
+    if is_main_user_data_dir(user_data_dir, browser):
+        user_data_dir = get_dedicated_profile_path(browser)
 
     # Dry-run always runs visually so the user can see the overlay
     if dry_run:
@@ -192,14 +197,18 @@ def execute_punch(
     if not all([email, senha, local_coletor, pin, user_data_dir]):
         if not dry_run:
             db.mark_schedule_error(schedule_id)
-        raise RuntimeError("Credenciais ou caminho do perfil Chrome não configurados.")
+        raise RuntimeError(f"Credenciais ou caminho do perfil {browser_label} não configurados.")
 
-    _log_step(log_callback, f"Iniciando {'teste' if dry_run else 'registro'} de ponto: {PUNCH_LABEL.get(punch_type, punch_type)}", ok=True)
+    _log_step(
+        log_callback,
+        f"Iniciando {'teste' if dry_run else 'registro'} de ponto no {browser_label}: {PUNCH_LABEL.get(punch_type, punch_type)}",
+        ok=True,
+    )
 
     with sync_playwright() as playwright:
         context = playwright.chromium.launch_persistent_context(
             user_data_dir=user_data_dir,
-            channel="chrome",
+            channel=get_playwright_channel(browser),
             headless=headless,
             args=[f"--profile-directory={profile_name}"],
             no_viewport=True,

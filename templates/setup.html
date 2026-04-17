@@ -3,222 +3,642 @@
 <head>
   <meta charset="UTF-8">
   <title>Configurações — Ponto TolentX</title>
+  <script>
+    (function () {
+      try {
+        document.documentElement.dataset.theme = localStorage.getItem("ptx-theme") || "theme-2";
+      } catch (error) {
+        document.documentElement.dataset.theme = "theme-2";
+      }
+    })();
+  </script>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-<body>
+<body class="dashboard-page settings-page">
+<header class="dashboard-header">
+  <div class="dashboard-header-inner">
+    <div class="dashboard-brand">
+      <div class="dashboard-brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <circle cx="12" cy="12" r="8.5"></circle>
+          <path stroke-linecap="round" d="M12 7.5v5l3 2"></path>
+        </svg>
+      </div>
+      <div class="dashboard-brand-copy">
+        <h1 class="dashboard-brand-title">Ponto<span>Tolentx</span></h1>
+        <p class="dashboard-brand-subtitle">Configuration console</p>
+      </div>
+    </div>
 
-<header class="header">
-  <div class="header-brand">PONTO <span>TOLENTX</span></div>
-  <nav class="header-nav">
-    <a href="/" class="btn btn-ghost btn-sm">&#8592; Voltar</a>
-    <form method="POST" action="/logout" style="margin:0">
-      <button type="submit" class="btn btn-ghost btn-sm">Sair</button>
-    </form>
-  </nav>
+    <div class="dashboard-header-actions">
+      <div class="theme-toggle" role="group" aria-label="Alternar tema visual">
+        <button type="button" class="theme-toggle-btn" data-theme-value="classic" onclick="setTheme('classic')">Clássico</button>
+        <button type="button" class="theme-toggle-btn is-active" data-theme-value="theme-2" onclick="setTheme('theme-2')">Tema 2.0</button>
+      </div>
+      <a href="/" class="btn btn-ghost btn-sm header-action-btn">Voltar</a>
+      <form method="POST" action="/logout" style="margin:0">
+        <button type="submit" class="btn btn-ghost btn-sm header-action-btn">Sair</button>
+      </form>
+    </div>
+  </div>
 </header>
 
-<div class="setup-container">
-  <h2>Configurações</h2>
+<main class="settings-shell">
+  <section class="settings-hero">
+    <div class="settings-hero-copy">
+      <p class="settings-eyebrow">Painel de configuração</p>
+      <h2 class="settings-title">Ajuste credenciais, perfis dedicados de Chrome e Edge e janelas dos quatro pontos.</h2>
+      <p class="settings-lead">
+        A tela foi alinhada ao dashboard 2.0, mas continua usando os mesmos campos e o mesmo fluxo de execução.
+        Agora você pode importar sessão do Chrome ou do Edge e escolher qual navegador realmente fará o registro do ponto.
+      </p>
+    </div>
+
+    <div class="settings-highlights">
+      <article class="settings-highlight-card">
+        <span class="settings-highlight-label">Perfil dedicado</span>
+        <strong class="settings-highlight-value">Recomendado</strong>
+        <span class="settings-highlight-hint">Mantém Chrome e Edge pessoais livres do perfil usado pela automação.</span>
+      </article>
+      <article class="settings-highlight-card">
+        <span class="settings-highlight-label">Modo atual</span>
+        <strong class="settings-highlight-value">{{ 'Headless' if config.headless_mode == '1' else 'Visual' }}</strong>
+        <span class="settings-highlight-hint">Pode ser alternado sem mudar a lógica do sistema.</span>
+      </article>
+      <article class="settings-highlight-card">
+        <span class="settings-highlight-label">Janelas do dia</span>
+        <strong class="settings-highlight-value">4 pontos</strong>
+        <span class="settings-highlight-hint">Entrada, almoço, retorno e saída com faixa randômica.</span>
+      </article>
+    </div>
+  </section>
 
   {% if error %}
-  <div class="toast toast-error" style="margin-bottom:16px;">{{ error }}</div>
+  <div class="settings-alert settings-alert-error">{{ error }}</div>
   {% endif %}
 
-  <form method="POST" action="/setup">
+  <form method="POST" action="/setup" class="settings-layout">
+    <aside class="settings-sidebar">
+      <section class="settings-side-card">
+        <p class="settings-side-title">Fluxo ideal</p>
+        <ol class="settings-steps">
+          <li>Preencha credenciais e nome do coletor.</li>
+          <li>Escolha a aba Chrome ou Edge e importe a sessão correta.</li>
+          <li>Defina qual navegador realmente baterá o ponto.</li>
+          <li>Ajuste os horários e salve.</li>
+        </ol>
+      </section>
 
-    <!-- Credentials -->
-    <div class="form-section">
-      <h3>Credenciais Pontotel</h3>
-      <div class="form-grid">
-        <div class="form-group full">
-          <label>E-mail de acesso</label>
-          <input type="email" name="email" value="{{ config.email }}" required placeholder="usuario@empresa.com.br">
+      <section class="settings-side-card">
+        <p class="settings-side-title">Estado da sessão</p>
+        <div class="settings-inline-note">
+          <span class="status-dot dot-blue"></span>
+          <span>Use perfis dedicados separados para a automação.</span>
         </div>
-        <div class="form-group">
-          <label>Senha</label>
-          <input type="password" name="senha" placeholder="{{ '••••••••' if config.senha_enc else 'Definir senha' }}">
-          {% if config.senha_enc %}
-          <span class="form-hint">Deixe em branco para manter a senha atual.</span>
+        <p class="settings-side-text" id="sidebar-profile-copy">
+          {% if config.browser_channel == 'edge' %}
+          Edge está selecionado para registrar o ponto. Importe ou configure o Edge dedicado e valide na tela principal antes de ligar o agendamento.
+          {% else %}
+          Chrome está selecionado para registrar o ponto. Se o coletor existir só no Edge, importe pela aba Edge e valide; se não reaproveitar a sessão, troque o navegador operacional para Edge.
           {% endif %}
+        </p>
+      </section>
+
+      <section class="settings-side-card">
+        <p class="settings-side-title">Validação</p>
+        <p class="settings-side-text">
+          Depois de salvar, volte para a tela principal e rode o botão <strong>Testar agora</strong> para confirmar a sessão e o fluxo de autenticação.
+        </p>
+      </section>
+    </aside>
+
+    <div class="settings-content">
+      <section class="settings-section-card">
+        <div class="settings-section-head">
+          <div>
+            <p class="settings-section-eyebrow">Autenticação</p>
+            <h3>Credenciais Pontotel</h3>
+          </div>
+          <span class="settings-section-tag">Essencial</span>
         </div>
-        <div class="form-group">
-          <label>Nome do coletor</label>
-          <input type="text" name="local_coletor" value="{{ config.local_coletor }}" required placeholder="SETDIG">
-        </div>
-        <div class="form-group full">
-          <label>PIN de registro</label>
-          <input type="password" name="pin" placeholder="{{ '••••••••' if config.pin_enc else 'Definir PIN' }}" inputmode="numeric">
-          {% if config.pin_enc %}
-          <span class="form-hint">Deixe em branco para manter o PIN atual.</span>
-          {% endif %}
-        </div>
-      </div>
-    </div>
 
-    <!-- Chrome profile & execution mode -->
-    <div class="form-section">
-      <h3>Perfil Chrome</h3>
-
-      <div style="background:#1e3a5f;border:1px solid #1e40af;border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:#93c5fd;line-height:1.6;">
-        <strong>Perfil dedicado (recomendado)</strong><br>
-        Use um diretório exclusivo para a automação — assim o Chrome principal pode ficar aberto normalmente.<br>
-        <strong>Opção A:</strong> Clique em <strong>"Importar sessão do Chrome"</strong> para copiar sua sessão atual do Pontotel — sem precisar fazer login novamente.<br>
-        <strong>Opção B:</strong> Clique em <strong>"Abrir Chrome para configurar"</strong> para fazer login e registrar o coletor manualmente.
-      </div>
-
-      <div class="form-group">
-        <label>Diretório do perfil de automação</label>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <input type="text" name="chrome_profile_path" id="profile-path-input"
-            value="{{ config.chrome_profile_path }}"
-            style="flex:1;" placeholder="Ex: C:\caminho\para\perfil">
-          <button type="button" class="btn btn-ghost btn-sm" id="btn-open-profile"
-            onclick="openProfileSetup()" style="white-space:nowrap;">
-            Abrir Chrome para configurar
-          </button>
-          <button type="button" class="btn btn-danger btn-sm" id="btn-close-profile"
-            onclick="closeProfileSetup()" style="white-space:nowrap;display:none;">
-            Fechar Chrome
-          </button>
-        </div>
-        <span class="form-hint" id="profile-hint">Este diretório é separado do seu Chrome pessoal. Será criado automaticamente se não existir.</span>
-      </div>
-
-      <div class="form-group" style="margin-top:8px;">
-        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-          <button type="button" class="btn btn-ghost btn-sm" id="btn-import-session"
-            onclick="importSession()" style="white-space:nowrap;">
-            Importar sessão do Chrome
-          </button>
-          <span id="import-session-hint" style="font-size:12px;color:var(--text-dim);">
-            Copia cookies do seu Chrome pessoal para o perfil de automação. <strong>Feche o Chrome antes.</strong>
-          </span>
-        </div>
-      </div>
-
-      <div class="form-group" style="margin-top:16px;">
-        <label>Modo de execução do Chrome</label>
-        <div style="display:flex;gap:16px;margin-top:6px;">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
-            <input type="radio" name="headless_mode" value="0"
-              {{ 'checked' if config.headless_mode != '1' else '' }}
-              style="accent-color:var(--accent);">
-            <span>
-              <strong>Visual</strong>
-              <span style="color:var(--text-dim);font-size:11px;display:block;">Janela do Chrome abre a cada registro — recomendado para validação inicial</span>
-            </span>
-          </label>
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
-            <input type="radio" name="headless_mode" value="1"
-              {{ 'checked' if config.headless_mode == '1' else '' }}
-              style="accent-color:var(--accent);">
-            <span>
-              <strong>Headless (silencioso)</strong>
-              <span style="color:var(--text-dim);font-size:11px;display:block;">Chrome roda em segundo plano sem abrir janela</span>
-            </span>
-          </label>
-        </div>
-      </div>
-    </div>
-
-    <!-- Punch times and ranges -->
-    <div class="form-section">
-      <h3>Horários base e variação aleatória</h3>
-      <p style="font-size:12px;color:var(--text-dim);margin-bottom:16px;">
-        O horário real será sorteado dentro do range configurado. O minuto nunca se repete em relação ao dia anterior no mesmo período.
-      </p>
-
-      {% set punch_defaults = {
-        'entrada':  {'label': 'Entrada',       'base': config.entrada_base  or '07:30', 'antes': config.entrada_range_antes  or '10', 'depois': config.entrada_range_depois  or '15'},
-        'pausa':    {'label': 'Pausa almoço',  'base': config.pausa_base    or '11:30', 'antes': config.pausa_range_antes    or '10', 'depois': config.pausa_range_depois    or '15'},
-        'retorno':  {'label': 'Retorno',       'base': config.retorno_base  or '12:30', 'antes': config.retorno_range_antes  or '10', 'depois': config.retorno_range_depois  or '15'},
-        'saida':    {'label': 'Saída',         'base': config.saida_base    or '16:30', 'antes': config.saida_range_antes    or '10', 'depois': config.saida_range_depois    or '15'},
-      } %}
-
-      {% for key, p in punch_defaults.items() %}
-      <div class="punch-config-block">
-        <div class="punch-config-title">{{ p.label }}</div>
         <div class="form-grid">
-          <div class="form-group">
-            <label>Horário base</label>
-            <input type="time" name="{{ key }}_base" value="{{ p.base }}" required>
+          <div class="form-group full">
+            <label>E-mail de acesso</label>
+            <input type="email" name="email" value="{{ config.email }}" required placeholder="usuario@empresa.com.br">
           </div>
           <div class="form-group">
-            <label>Range de variação (minutos)</label>
-            <div class="range-row">
-              <span>- </span>
-              <input type="number" name="{{ key }}_range_antes" value="{{ p.antes }}" min="0" max="59" required>
-              <span> + </span>
-              <input type="number" name="{{ key }}_range_depois" value="{{ p.depois }}" min="0" max="59" required>
-            </div>
+            <label>Senha</label>
+            <input type="password" name="senha" placeholder="{{ '••••••••' if config.senha_enc else 'Definir senha' }}">
+            {% if config.senha_enc %}
+            <span class="form-hint">Deixe em branco para manter a senha atual.</span>
+            {% endif %}
+          </div>
+          <div class="form-group">
+            <label>Nome do coletor</label>
+            <input type="text" name="local_coletor" value="{{ config.local_coletor }}" required placeholder="SETDIG">
+          </div>
+          <div class="form-group full">
+            <label>PIN de registro</label>
+            <input type="password" name="pin" placeholder="{{ '••••••••' if config.pin_enc else 'Definir PIN' }}" inputmode="numeric">
+            {% if config.pin_enc %}
+            <span class="form-hint">Deixe em branco para manter o PIN atual.</span>
+            {% endif %}
           </div>
         </div>
-      </div>
-      {% endfor %}
-    </div>
+      </section>
 
-    <button type="submit" class="btn btn-primary">Salvar configurações</button>
+      <section class="settings-section-card">
+        <div class="settings-section-head">
+          <div>
+            <p class="settings-section-eyebrow">Sessão do navegador</p>
+            <h3>Chrome + Edge</h3>
+          </div>
+          <span class="settings-section-tag">Flexível</span>
+        </div>
+
+        <div class="settings-callout">
+          <strong>Fluxo recomendado</strong>
+          <p>
+            Se o coletor já existe no Chrome, mantenha o Chrome como navegador operacional e importe a sessão direto dele.
+            Se o coletor existe só no Edge, use a aba Edge para copiar a sessão primeiro; se a migração para o Chrome não reaproveitar o coletor corretamente,
+            troque o navegador operacional para Edge e valide novamente.
+          </p>
+        </div>
+
+        <div class="settings-browser-tabs" role="tablist" aria-label="Escolher navegador de origem para importar a sessão">
+          <button
+            type="button"
+            class="settings-browser-tab {{ 'is-active' if config.browser_channel != 'edge' else '' }}"
+            data-browser-tab-trigger="chrome"
+            aria-selected="{{ 'true' if config.browser_channel != 'edge' else 'false' }}"
+            onclick="setBrowserTab('chrome')"
+          >
+            Chrome
+          </button>
+          <button
+            type="button"
+            class="settings-browser-tab {{ 'is-active' if config.browser_channel == 'edge' else '' }}"
+            data-browser-tab-trigger="edge"
+            aria-selected="{{ 'true' if config.browser_channel == 'edge' else 'false' }}"
+            onclick="setBrowserTab('edge')"
+          >
+            Edge
+          </button>
+        </div>
+
+        <div class="settings-browser-panel {{ 'is-active' if config.browser_channel != 'edge' else '' }}" data-browser-panel="chrome">
+          <div class="form-group">
+            <label>Diretório dedicado do Chrome de automação</label>
+            <div class="settings-profile-row">
+              <input
+                type="text"
+                name="chrome_profile_path"
+                id="chrome-profile-path-input"
+                value="{{ config.chrome_profile_path }}"
+                placeholder="Ex: C:\caminho\para\chrome-profile"
+              >
+              <button
+                type="button"
+                class="btn btn-ghost btn-sm settings-profile-btn"
+                id="btn-open-profile-chrome"
+                data-default-label="Abrir Chrome para configurar"
+                onclick="openProfileSetup('chrome')"
+              >
+                Abrir Chrome para configurar
+              </button>
+              <button
+                type="button"
+                class="btn btn-danger btn-sm settings-profile-btn"
+                id="btn-close-profile-chrome"
+                onclick="closeProfileSetup('chrome')"
+                style="display:none;"
+              >
+                Fechar Chrome
+              </button>
+            </div>
+            <span
+              class="form-hint"
+              id="chrome-profile-hint"
+              data-default-copy="Esse diretório dedicado do Chrome será usado quando o navegador operacional estiver em Chrome."
+            >
+              Esse diretório dedicado do Chrome será usado quando o navegador operacional estiver em Chrome.
+            </span>
+          </div>
+
+          <div class="settings-inline-actions">
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm"
+              id="btn-import-session-chrome"
+              data-default-label="Importar sessão do Chrome"
+              onclick="importSession('chrome')"
+            >
+              Importar sessão do Chrome
+            </button>
+            <span
+              class="settings-inline-copy"
+              id="import-session-hint-chrome"
+              data-default-copy="Copia cookies e Local Storage do Chrome pessoal para o perfil dedicado do navegador operacional escolhido abaixo. <strong>Feche o Chrome antes.</strong>"
+            >
+              Copia cookies e Local Storage do Chrome pessoal para o perfil dedicado do navegador operacional escolhido abaixo. <strong>Feche o Chrome antes.</strong>
+            </span>
+          </div>
+
+          <div class="settings-procedure-frame">
+            <div class="settings-procedure-head">
+              <strong>Como usar com Chrome</strong>
+              <span>Fluxo padrão para quem já tem o coletor e a sessão salvos no Chrome.</span>
+            </div>
+            <ol class="settings-procedure-steps">
+              <li>Feche o Chrome pessoal completamente para liberar o arquivo de cookies.</li>
+              <li>Clique em <strong>Importar sessão do Chrome</strong> para copiar cookies e Local Storage do perfil pessoal <strong>Default</strong>.</li>
+              <li>Se precisar cadastrar o coletor do zero, clique em <strong>Abrir Chrome para configurar</strong>, faça login no Pontotel e registre o coletor informado.</li>
+              <li>Salve as configurações, volte para a home e use <strong>Testar agora</strong> antes de deixar o agendamento rodando.</li>
+            </ol>
+          </div>
+        </div>
+
+        <div class="settings-browser-panel {{ 'is-active' if config.browser_channel == 'edge' else '' }}" data-browser-panel="edge">
+          <div class="form-group">
+            <label>Diretório dedicado do Edge de automação</label>
+            <div class="settings-profile-row">
+              <input
+                type="text"
+                name="edge_profile_path"
+                id="edge-profile-path-input"
+                value="{{ config.edge_profile_path }}"
+                placeholder="Ex: C:\caminho\para\edge-profile"
+              >
+              <button
+                type="button"
+                class="btn btn-ghost btn-sm settings-profile-btn"
+                id="btn-open-profile-edge"
+                data-default-label="Abrir Edge para configurar"
+                onclick="openProfileSetup('edge')"
+              >
+                Abrir Edge para configurar
+              </button>
+              <button
+                type="button"
+                class="btn btn-danger btn-sm settings-profile-btn"
+                id="btn-close-profile-edge"
+                onclick="closeProfileSetup('edge')"
+                style="display:none;"
+              >
+                Fechar Edge
+              </button>
+            </div>
+            <span
+              class="form-hint"
+              id="edge-profile-hint"
+              data-default-copy="Esse diretório dedicado do Edge fica pronto para o fallback quando o Chrome não reaproveitar a sessão importada."
+            >
+              Esse diretório dedicado do Edge fica pronto para o fallback quando o Chrome não reaproveitar a sessão importada.
+            </span>
+          </div>
+
+          <div class="settings-inline-actions">
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm"
+              id="btn-import-session-edge"
+              data-default-label="Importar sessão do Edge"
+              onclick="importSession('edge')"
+            >
+              Importar sessão do Edge
+            </button>
+            <span
+              class="settings-inline-copy"
+              id="import-session-hint-edge"
+              data-default-copy="Copia cookies e Local Storage do Edge pessoal para o perfil dedicado do navegador operacional escolhido abaixo. <strong>Feche o Edge antes.</strong>"
+            >
+              Copia cookies e Local Storage do Edge pessoal para o perfil dedicado do navegador operacional escolhido abaixo. <strong>Feche o Edge antes.</strong>
+            </span>
+          </div>
+
+          <div class="settings-procedure-frame">
+            <div class="settings-procedure-head">
+              <strong>Como usar com Edge</strong>
+              <span>Fluxo pensado para quem já tem o coletor e a sessão ativos só no Edge.</span>
+            </div>
+            <ol class="settings-procedure-steps">
+              <li>Deixe <strong>Chrome</strong> como navegador operacional na primeira tentativa para migrar a sessão do Edge e continuar batendo ponto pelo Chrome.</li>
+              <li>Feche o Edge pessoal completamente e clique em <strong>Importar sessão do Edge</strong>. A cópia sai do perfil pessoal <strong>Default</strong>.</li>
+              <li>Salve, volte para a home e valide com <strong>Testar agora</strong>. Se o Chrome não reaproveitar a sessão ou o coletor, volte aqui e troque o navegador operacional para <strong>Edge</strong>.</li>
+              <li>No fallback com Edge, importe novamente ou abra o Edge dedicado, confirme login/coletor e rode um novo teste antes de ativar o agendamento.</li>
+            </ol>
+          </div>
+        </div>
+
+        <div class="settings-mode-grid settings-browser-target-grid">
+          <label class="settings-radio-card">
+            <input type="radio" name="browser_channel" value="chrome" {{ 'checked' if config.browser_channel != 'edge' else '' }}>
+            <span class="settings-radio-copy">
+              <strong>Usar Chrome para bater ponto</strong>
+              <span>Fluxo padrão. Recomendado quando a sessão já existe no Chrome ou quando a importação vinda do Edge funcionar corretamente.</span>
+            </span>
+          </label>
+          <label class="settings-radio-card">
+            <input type="radio" name="browser_channel" value="edge" {{ 'checked' if config.browser_channel == 'edge' else '' }}>
+            <span class="settings-radio-copy">
+              <strong>Usar Edge para bater ponto</strong>
+              <span>Fallback oficial quando a migração do Edge para o Chrome não reaproveitar a sessão ou o coletor como esperado.</span>
+            </span>
+          </label>
+        </div>
+
+        <div class="settings-mode-grid">
+          <label class="settings-radio-card">
+            <input type="radio" name="headless_mode" value="0" {{ 'checked' if config.headless_mode != '1' else '' }}>
+            <span class="settings-radio-copy">
+              <strong>Visual</strong>
+              <span>O navegador operacional abre a cada registro. Melhor para validação inicial.</span>
+            </span>
+          </label>
+          <label class="settings-radio-card">
+            <input type="radio" name="headless_mode" value="1" {{ 'checked' if config.headless_mode == '1' else '' }}>
+            <span class="settings-radio-copy">
+              <strong>Headless</strong>
+              <span>O navegador operacional roda em segundo plano sem abrir janela.</span>
+            </span>
+          </label>
+        </div>
+      </section>
+
+      <section class="settings-section-card">
+        <div class="settings-section-head">
+          <div>
+            <p class="settings-section-eyebrow">Agenda automática</p>
+            <h3>Horários base e variação aleatória</h3>
+          </div>
+          <span class="settings-section-tag">Agendamento</span>
+        </div>
+
+        <p class="settings-section-copy">
+          O horário real será sorteado dentro do range configurado. O minuto nunca se repete em relação ao dia anterior no mesmo período.
+        </p>
+
+        {% set punch_defaults = {
+          'entrada':  {'label': 'Entrada',       'base': config.entrada_base  or '07:30', 'antes': config.entrada_range_antes  or '10', 'depois': config.entrada_range_depois  or '15'},
+          'pausa':    {'label': 'Pausa almoço',  'base': config.pausa_base    or '11:30', 'antes': config.pausa_range_antes    or '10', 'depois': config.pausa_range_depois    or '15'},
+          'retorno':  {'label': 'Retorno',       'base': config.retorno_base  or '12:30', 'antes': config.retorno_range_antes  or '10', 'depois': config.retorno_range_depois  or '15'},
+          'saida':    {'label': 'Saída',         'base': config.saida_base    or '16:30', 'antes': config.saida_range_antes    or '10', 'depois': config.saida_range_depois    or '15'},
+        } %}
+
+        <div class="settings-punch-grid">
+          {% for key, p in punch_defaults.items() %}
+          <article class="settings-punch-card">
+            <div class="settings-punch-head">
+              <h4>{{ p.label }}</h4>
+              <span class="settings-punch-index">P{{ loop.index }}</span>
+            </div>
+            <div class="form-grid form-grid-tight">
+              <div class="form-group">
+                <label>Horário base</label>
+                <input type="time" name="{{ key }}_base" value="{{ p.base }}" required>
+              </div>
+              <div class="form-group">
+                <label>Range de variação (minutos)</label>
+                <div class="range-row">
+                  <span>-</span>
+                  <input type="number" name="{{ key }}_range_antes" value="{{ p.antes }}" min="0" max="59" required>
+                  <span>+</span>
+                  <input type="number" name="{{ key }}_range_depois" value="{{ p.depois }}" min="0" max="59" required>
+                </div>
+              </div>
+            </div>
+          </article>
+          {% endfor %}
+        </div>
+      </section>
+
+      <div class="settings-footer-actions">
+        <a href="/" class="btn btn-ghost">Cancelar</a>
+        <button type="submit" class="btn btn-primary">Salvar configurações</button>
+      </div>
+    </div>
   </form>
-</div>
+</main>
 
 <script>
-  async function openProfileSetup() {
-    const profilePath = document.getElementById('profile-path-input').value.trim();
-    const btn = document.getElementById('btn-open-profile');
-    btn.disabled = true;
-    btn.textContent = 'Abrindo...';
+  function setTheme(theme) {
+    document.documentElement.dataset.theme = theme;
+    try {
+      localStorage.setItem("ptx-theme", theme);
+    } catch (error) {
+      console.error(error);
+    }
+    syncThemeToggle();
+  }
 
-    const res = await fetch('/api/open-profile', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ profile_path: profilePath || null })
+  function syncThemeToggle() {
+    const currentTheme = document.documentElement.dataset.theme || "theme-2";
+    document.querySelectorAll(".theme-toggle-btn").forEach((button) => {
+      const isActive = button.dataset.themeValue === currentTheme;
+      button.classList.toggle("is-active", isActive);
+      button.setAttribute("aria-pressed", isActive ? "true" : "false");
     });
-    const data = await res.json();
+  }
 
-    if (data.ok) {
-      document.getElementById('profile-path-input').value = data.profile_path;
-      document.getElementById('btn-open-profile').style.display = 'none';
-      document.getElementById('btn-close-profile').style.display = '';
-      document.getElementById('profile-hint').innerHTML =
-        '<strong style="color:#86efac;">Chrome aberto.</strong> Faça login no Pontotel e registre o coletor <strong>' +
-        (document.querySelector('[name=local_coletor]').value || 'SETDIG') +
-        '</strong>. Quando terminar, clique em <strong>Fechar Chrome</strong> e salve as configurações.';
-    } else {
-      btn.disabled = false;
-      btn.textContent = 'Abrir Chrome para configurar';
-      alert('Erro ao abrir Chrome: ' + data.error);
+  function setSidebarCopy(message) {
+    document.getElementById("sidebar-profile-copy").innerHTML = message;
+  }
+
+  const browserLabels = {
+    chrome: "Chrome",
+    edge: "Edge",
+  };
+  let activeSetupBrowser = null;
+
+  function getBrowserLabel(browser) {
+    return browserLabels[browser] || browserLabels.chrome;
+  }
+
+  function getSelectedOperationalBrowser() {
+    return document.querySelector('[name="browser_channel"]:checked')?.value || "chrome";
+  }
+
+  function getProfileInput(browser) {
+    return document.getElementById(`${browser}-profile-path-input`);
+  }
+
+  function getProfileHint(browser) {
+    return document.getElementById(`${browser}-profile-hint`);
+  }
+
+  function getImportHint(browser) {
+    return document.getElementById(`import-session-hint-${browser}`);
+  }
+
+  function getOpenButton(browser) {
+    return document.getElementById(`btn-open-profile-${browser}`);
+  }
+
+  function getCloseButton(browser) {
+    return document.getElementById(`btn-close-profile-${browser}`);
+  }
+
+  function getImportButton(browser) {
+    return document.getElementById(`btn-import-session-${browser}`);
+  }
+
+  function getDefaultSidebarCopy() {
+    const targetBrowser = getSelectedOperationalBrowser();
+    if (targetBrowser === "edge") {
+      return "Edge está selecionado para registrar o ponto. Importe ou configure o Edge dedicado e valide na tela principal antes de ligar o agendamento.";
+    }
+    return "Chrome está selecionado para registrar o ponto. Se o coletor existir só no Edge, importe pela aba Edge e valide; se não reaproveitar a sessão, troque o navegador operacional para Edge.";
+  }
+
+  function restoreProfileHint(browser) {
+    const hint = getProfileHint(browser);
+    if (hint) {
+      hint.innerHTML = hint.dataset.defaultCopy;
     }
   }
 
-  async function closeProfileSetup() {
-    await fetch('/api/close-profile', { method: 'POST' });
-    document.getElementById('btn-open-profile').style.display = '';
-    document.getElementById('btn-open-profile').disabled = false;
-    document.getElementById('btn-open-profile').textContent = 'Abrir Chrome para configurar';
-    document.getElementById('btn-close-profile').style.display = 'none';
-    document.getElementById('profile-hint').textContent = 'Este diretório é separado do seu Chrome pessoal. Será criado automaticamente se não existir.';
-  }
-
-  async function importSession() {
-    const btn = document.getElementById('btn-import-session');
-    const hint = document.getElementById('import-session-hint');
-    btn.disabled = true;
-    btn.textContent = 'Importando...';
-    hint.innerHTML = 'Copiando cookies e Local Storage...';
-
-    const res = await fetch('/api/import-session', { method: 'POST' });
-    const data = await res.json();
-
-    if (data.ok) {
-      hint.innerHTML = '<strong style="color:#86efac;">Sessão importada com sucesso.</strong> Salve as configurações e use "Testar" na tela principal para validar.';
-      btn.textContent = 'Importar sessão do Chrome';
-      btn.disabled = false;
-    } else {
-      hint.innerHTML = '<strong style="color:#fca5a5;">' + data.error + '</strong>';
-      btn.textContent = 'Importar sessão do Chrome';
-      btn.disabled = false;
+  function restoreImportHint(browser) {
+    const hint = getImportHint(browser);
+    if (hint) {
+      hint.innerHTML = hint.dataset.defaultCopy;
     }
   }
+
+  function setBrowserTab(browser) {
+    document.querySelectorAll("[data-browser-tab-trigger]").forEach((button) => {
+      const isActive = button.dataset.browserTabTrigger === browser;
+      button.classList.toggle("is-active", isActive);
+      button.setAttribute("aria-selected", isActive ? "true" : "false");
+    });
+
+    document.querySelectorAll("[data-browser-panel]").forEach((panel) => {
+      panel.classList.toggle("is-active", panel.dataset.browserPanel === browser);
+    });
+  }
+
+  function syncSidebarCopy() {
+    if (!activeSetupBrowser) {
+      setSidebarCopy(getDefaultSidebarCopy());
+    }
+  }
+
+  function setSetupBrowserState(browser) {
+    activeSetupBrowser = browser;
+
+    ["chrome", "edge"].forEach((key) => {
+      const openButton = getOpenButton(key);
+      const closeButton = getCloseButton(key);
+      const isOpen = browser === key;
+      const isBlocked = Boolean(browser) && !isOpen;
+
+      openButton.style.display = isOpen ? "none" : "";
+      openButton.disabled = isBlocked;
+      openButton.textContent = openButton.dataset.defaultLabel;
+      closeButton.style.display = isOpen ? "" : "none";
+    });
+
+    if (!browser) {
+      syncSidebarCopy();
+    }
+  }
+
+  async function openProfileSetup(browser) {
+    const label = getBrowserLabel(browser);
+    const profileInput = getProfileInput(browser);
+    const profileHint = getProfileHint(browser);
+    const button = getOpenButton(browser);
+
+    button.disabled = true;
+    button.textContent = "Abrindo...";
+
+    const response = await fetch("/api/open-profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        browser,
+        profile_path: profileInput.value.trim() || null,
+      }),
+    });
+    const data = await response.json();
+
+    if (data.ok) {
+      profileInput.value = data.profile_path;
+      setBrowserTab(browser);
+      setSetupBrowserState(browser);
+      profileHint.innerHTML =
+        '<strong class="status-text-ok">' + data.browser_label + ' aberto.</strong> Faça login no Pontotel e registre o coletor <strong>' +
+        (document.querySelector("[name=local_coletor]").value || "SETDIG") +
+        "</strong>. Quando terminar, clique em <strong>Fechar " + data.browser_label + "</strong> e salve as configurações.";
+      setSidebarCopy(data.browser_label + " dedicado em execução. Finalize o login no Pontotel, registre o coletor e depois feche a janela para concluir.");
+      return;
+    }
+
+    button.disabled = false;
+    button.textContent = button.dataset.defaultLabel;
+    alert("Erro ao abrir " + label + ": " + data.error);
+  }
+
+  async function closeProfileSetup(browser) {
+    await fetch("/api/close-profile", { method: "POST" });
+    setSetupBrowserState(null);
+    restoreProfileHint(browser);
+  }
+
+  async function importSession(sourceBrowser) {
+    const sourceLabel = getBrowserLabel(sourceBrowser);
+    const targetBrowser = getSelectedOperationalBrowser();
+    const targetLabel = getBrowserLabel(targetBrowser);
+    const targetInput = getProfileInput(targetBrowser);
+    const button = getImportButton(sourceBrowser);
+    const hint = getImportHint(sourceBrowser);
+
+    button.disabled = true;
+    button.textContent = "Importando...";
+    hint.innerHTML = "Copiando cookies e Local Storage do " + sourceLabel + " para o perfil dedicado do " + targetLabel + "...";
+
+    const response = await fetch("/api/import-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        source_browser: sourceBrowser,
+        target_browser: targetBrowser,
+        profile_path: targetInput.value.trim() || null,
+      }),
+    });
+    const data = await response.json();
+
+    if (data.ok) {
+      if (targetInput) {
+        targetInput.value = data.profile_path;
+      }
+      hint.innerHTML =
+        '<strong class="status-text-ok">Sessão importada com sucesso.</strong> ' +
+        data.source_label + " -> perfil dedicado do " + data.target_label +
+        '. Salve as configurações e use "Testar agora" na tela principal para validar.';
+      button.textContent = button.dataset.defaultLabel;
+      button.disabled = false;
+      const sidebarMessage = data.target_browser === "chrome"
+        ? "Sessão do " + data.source_label + " copiada para o perfil dedicado do " + data.target_label + '. Salve e valide na home. Se o Chrome não reaproveitar o coletor, troque o navegador operacional para Edge.'
+        : "Sessão do " + data.source_label + " copiada para o perfil dedicado do " + data.target_label + '. Salve e valide na home. Mantendo o Edge operacional, confirme um teste antes de religar o agendamento.';
+      setSidebarCopy(
+        sidebarMessage
+      );
+      return;
+    }
+
+    hint.innerHTML = '<strong class="status-text-error">' + data.error + "</strong>";
+    button.textContent = button.dataset.defaultLabel;
+    button.disabled = false;
+  }
+
+  document.querySelectorAll('[name="browser_channel"]').forEach((input) => {
+    input.addEventListener("change", syncSidebarCopy);
+  });
+
+  setBrowserTab(getSelectedOperationalBrowser());
+  setSetupBrowserState(null);
+  syncThemeToggle();
 </script>
 </body>
 </html>

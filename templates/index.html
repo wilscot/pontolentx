@@ -2,163 +2,267 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>Ponto TolentX</title>
+  <title>PonTolentx</title>
+  <script>
+    (function () {
+      try {
+        document.documentElement.dataset.theme = localStorage.getItem("ptx-theme") || "theme-2";
+      } catch (error) {
+        document.documentElement.dataset.theme = "theme-2";
+      }
+    })();
+  </script>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-<body>
-
-<header class="header">
-  <div class="header-brand">PONTO <span>TOLENTX</span></div>
-  <nav class="header-nav">
-    <a href="/setup" class="btn btn-ghost btn-sm">Configurações</a>
-    <form method="POST" action="/logout" style="margin:0">
-      <button type="submit" class="btn btn-ghost btn-sm">Sair</button>
-    </form>
-  </nav>
-</header>
-
-<div class="scheduler-bar">
-  <span class="status-dot {{ 'dot-green' if scheduler_running else 'dot-gray' }}"></span>
-  <span class="scheduler-label">Agendador {{ 'ativo' if scheduler_running else 'inativo' }}</span>
-  {% if scheduler_running %}
-    <button class="btn btn-danger btn-sm" onclick="toggleScheduler(false)">Pausar</button>
-  {% else %}
-    <button class="btn btn-primary btn-sm" onclick="toggleScheduler(true)">Iniciar</button>
-  {% endif %}
-  <div style="margin-left:auto; display:flex; gap:8px;">
-    <button class="btn btn-ghost btn-sm" onclick="importHolidays()">Importar feriados</button>
-    <button class="btn btn-ghost btn-sm" onclick="openTestModal()" style="border-color:var(--yellow);color:var(--yellow);">Testar</button>
-  </div>
-</div>
-
-{% macro render_day_balance(day) -%}
-  {% if day.show_balance %}
-    <div class="day-balance day-balance-{{ day.balance_type }}">
-      <span class="day-balance-label">{{ day.balance_title }}</span>
-      <span class="day-balance-value">{{ day.balance_label }}</span>
-    </div>
-  {% endif %}
+<body class="dashboard-page">
+{% macro render_metric(metric, index) -%}
+  <article class="metric-card metric-accent-{{ metric.accent }} fade-up" style="animation-delay: {{ index * 60 }}ms;">
+    <p class="metric-label">{{ metric.label }}</p>
+    <p class="metric-value">{{ metric.value }}</p>
+    <p class="metric-hint">{{ metric.hint }}</p>
+  </article>
 {%- endmacro %}
 
-{% macro render_day_card(day) -%}
+{% macro render_day_card(day, index) -%}
   {% set is_off = day.day_type in ['feriado', 'folga', 'facultativo'] %}
-  <div class="day-card {% if day.is_today %}is-today{% elif day.is_past %}is-past{% endif %} {% if is_off %}is-{{ day.day_type }}{% endif %}"
-       data-date="{{ day.date }}">
-    <div class="day-header">
+  {% set card_classes = ['day-card', 'fade-up'] %}
+  {% if day.is_today %}{% set _ = card_classes.append('is-today') %}{% endif %}
+  {% if day.is_past %}{% set _ = card_classes.append('is-past') %}{% endif %}
+  {% if is_off %}{% set _ = card_classes.append('is-special') %}{% endif %}
+  {% if is_off or day.day_type == 'meio_expediente' %}{% set _ = card_classes.append('is-' ~ day.day_type) %}{% endif %}
+
+  {% set badge_label = 'Normal' %}
+  {% set badge_class = 'status-badge-normal' %}
+  {% if day.day_type == 'feriado' %}
+    {% set badge_label = 'Feriado' %}
+    {% set badge_class = 'status-badge-holiday' %}
+  {% elif day.day_type == 'folga' %}
+    {% set badge_label = 'Folga' %}
+    {% set badge_class = 'status-badge-info' %}
+  {% elif day.day_type == 'facultativo' %}
+    {% set badge_label = 'Facultativo' %}
+    {% set badge_class = 'status-badge-info' %}
+  {% elif day.day_type == 'meio_expediente' %}
+    {% set badge_label = 'Meio expediente' %}
+    {% set badge_class = 'status-badge-info' %}
+  {% elif day.show_balance and day.balance_type == 'extra' %}
+    {% set badge_label = 'Hora extra' %}
+    {% set badge_class = 'status-badge-overtime' %}
+  {% endif %}
+
+  <article class="{{ card_classes | join(' ') }}" style="animation-delay: {{ index * 40 }}ms;" data-date="{{ day.date }}">
+    <header class="day-card-header">
       <div>
-        <div class="day-name">{{ day.weekday }}</div>
-        <div class="day-date">{{ day.date[8:] }}/{{ day.date[5:7] }}</div>
+        <p class="day-card-weekday">{{ day.weekday }}</p>
+        <p class="day-card-date">{{ day.date[8:] }}/{{ day.date[5:7] }}</p>
       </div>
       <div>
         {% if day.is_today %}
-          <span class="day-badge today-badge">Hoje</span>
-        {% elif day.day_type == 'feriado' %}
-          <span class="day-badge holiday-badge" title="{{ day.notes }}" onclick="openDayModal('{{ day.date }}', '{{ day.day_type }}')">{{ day.day_type_label }}</span>
-        {% elif day.day_type == 'folga' %}
-          <span class="day-badge folga-badge" onclick="openDayModal('{{ day.date }}', '{{ day.day_type }}')">{{ day.day_type_label }}</span>
-        {% elif day.day_type == 'meio_expediente' %}
-          <span class="day-badge meio-badge" onclick="openDayModal('{{ day.date }}', '{{ day.day_type }}')">{{ day.day_type_label }}</span>
-        {% elif day.day_type == 'facultativo' %}
-          <span class="day-badge folga-badge" onclick="openDayModal('{{ day.date }}', '{{ day.day_type }}')">{{ day.day_type_label }}</span>
+          <span class="status-badge status-badge-today">Hoje</span>
         {% else %}
-          <span class="day-badge" onclick="openDayModal('{{ day.date }}', '{{ day.day_type }}')">{{ day.day_type_label }}</span>
+          <button type="button" class="status-badge {{ badge_class }}" onclick='openDayModal({{ day.date|tojson }}, {{ day.day_type|tojson }})'>{{ badge_label }}</button>
         {% endif %}
       </div>
-    </div>
+    </header>
 
     {% if is_off %}
-      <div class="no-schedule">{{ day.notes or 'Sem registro neste dia' }}</div>
+      <div class="day-special day-special-{{ day.day_type }}">
+        <div class="day-special-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <p class="day-special-title">{{ day.notes or day.day_type_label }}</p>
+        <p class="day-special-subtitle">
+          {% if day.day_type == 'feriado' %}
+            Nenhum ponto será registrado
+          {% elif day.day_type == 'folga' %}
+            Dia configurado como folga
+          {% else %}
+            Ponto facultativo configurado
+          {% endif %}
+        </p>
+      </div>
     {% else %}
       <div class="punches-list">
         {% for punch in day.punches %}
-        <div class="punch-row">
-          <span class="punch-label">{{ punch.label }}</span>
-          {% if punch.status == 'registrado' %}
-            <span class="punch-time-display registered">Ag: {{ punch.scheduled_time or '--' }} · Ex: {{ punch.actual_time or '—' }}</span>
-          {% elif punch.status == 'erro' %}
-            <span class="punch-time-display error">Ag: {{ punch.scheduled_time or '--' }} · Ex: Erro</span>
-          {% elif punch.status == 'ignorado' %}
-            <span class="punch-time-display ignored">Ag: {{ punch.scheduled_time or '--' }} · Ex: Ignorado</span>
-          {% elif punch.status == 'nao_executado' %}
-            <span class="punch-time-display not-executed">Ag: {{ punch.scheduled_time or '--' }} · Ex: —</span>
-          {% elif punch.id and not day.is_past %}
-            <div class="punch-actions pending-actions">
-              <span class="punch-time-display pending">Ag: {{ punch.scheduled_time or '--' }} · Ex: —</span>
-              <button class="btn btn-ghost btn-sm edit-time-btn" onclick="toggleEdit(this)">Editar</button>
-              <div class="punch-edit-controls">
-                <input class="punch-time-input"
-                       type="time"
-                       value="{{ punch.scheduled_time or '' }}"
-                       data-id="{{ punch.id }}"
-                       data-original="{{ punch.scheduled_time or '' }}"
-                       onkeydown="if(event.key==='Enter') saveTime(this)">
-                <button class="save-btn visible" onclick="saveTime(this.previousElementSibling)">Salvar</button>
-                <button class="btn btn-ghost btn-sm cancel-edit-btn" onclick="cancelEdit(this)">Cancelar</button>
+          <div class="punch-row">
+            <span class="punch-label">{{ punch.label }}</span>
+            {% if punch.status == 'registrado' %}
+              <span class="punch-time-display registered">Ag {{ punch.scheduled_time or '--' }} · Ex {{ punch.actual_time or '—' }}</span>
+            {% elif punch.status == 'erro' %}
+              <span class="punch-time-display error">Ag {{ punch.scheduled_time or '--' }} · Ex erro</span>
+            {% elif punch.status == 'ignorado' %}
+              <span class="punch-time-display ignored">Ag {{ punch.scheduled_time or '--' }} · Ex ignorado</span>
+            {% elif punch.status == 'nao_executado' %}
+              <span class="punch-time-display not-executed">Ag {{ punch.scheduled_time or '--' }} · Ex pendente</span>
+            {% elif punch.id and not day.is_past %}
+              <div class="punch-actions pending-actions">
+                <span class="punch-time-display pending">Ag {{ punch.scheduled_time or '--' }} · Ex —</span>
+                <button class="btn btn-ghost btn-sm inline-edit-btn" onclick="toggleEdit(this)">Editar</button>
+                <div class="punch-edit-controls">
+                  <input
+                    class="punch-time-input"
+                    type="time"
+                    value="{{ punch.scheduled_time or '' }}"
+                    data-id="{{ punch.id }}"
+                    data-original="{{ punch.scheduled_time or '' }}"
+                    onkeydown="if(event.key==='Enter') saveTime(this)"
+                  >
+                  <button class="save-btn visible" onclick="saveTime(this.previousElementSibling)">Salvar</button>
+                  <button class="btn btn-ghost btn-sm cancel-edit-btn" onclick="cancelEdit(this)">Cancelar</button>
+                </div>
+                {% if day.is_today %}
+                  <button
+                    class="btn btn-ghost btn-sm punch-now-btn"
+                    data-label="{{ punch.label }}"
+                    onclick='punchNow({{ punch.punch_type|tojson }}, this)'
+                  >Bater agora</button>
+                {% endif %}
               </div>
-              {% if day.is_today %}
-              <button class="btn btn-ghost btn-sm punch-now-btn"
-                      style="font-size:11px;padding:2px 8px;white-space:nowrap;"
-                      data-label="{{ punch.label }}"
-                      onclick="punchNow('{{ punch.punch_type }}', this)">Bater agora</button>
-              {% endif %}
-            </div>
-          {% elif punch.scheduled_time %}
-            <span class="punch-time-display">Ag: {{ punch.scheduled_time }} · Ex: —</span>
-          {% else %}
-            <span class="punch-time-display" style="color:var(--gray)">Ag: — · Ex: —</span>
-          {% endif %}
-        </div>
+            {% elif punch.scheduled_time %}
+              <span class="punch-time-display">Ag {{ punch.scheduled_time }} · Ex —</span>
+            {% else %}
+              <span class="punch-time-display is-muted">Ag — · Ex —</span>
+            {% endif %}
+          </div>
         {% endfor %}
       </div>
     {% endif %}
-    {{ render_day_balance(day) }}
-  </div>
+
+    {% if day.show_balance and not is_off %}
+      <footer class="day-balance day-balance-{{ day.balance_type }}">
+        <div class="day-balance-meta">
+          <span class="day-balance-dot"></span>
+          <span class="day-balance-label">{{ day.balance_title }}</span>
+        </div>
+        <span class="day-balance-value">
+          {% if day.balance_minutes and day.balance_minutes > 0 %}+{% endif %}{{ day.balance_label }}
+        </span>
+      </footer>
+    {% endif %}
+  </article>
 {%- endmacro %}
 
-<div class="week-container">
-  <div class="week-nav">
-    <button onclick="navigateWeek(-7)">&#8592;</button>
-    <div class="week-labels">
-      <span id="week-label-current">{{ current_week_days[0].date }} — {{ current_week_days[4].date }}</span>
-      <span id="week-label-next">{{ next_week_days[0].date }} — {{ next_week_days[4].date }}</span>
-    </div>
-    <button onclick="navigateWeek(7)">&#8594;</button>
-  </div>
-
-  <div class="weeks-stack">
-    <div class="week-row">
-      <div class="week-row-title">Semana atual</div>
-      <div class="days-grid" id="days-grid-current">
-        {% for day in current_week_days %}
-          {{ render_day_card(day) }}
-        {% endfor %}
+<header class="dashboard-header">
+  <div class="dashboard-header-inner">
+    <div class="dashboard-brand">
+      <div class="dashboard-brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <circle cx="12" cy="12" r="8.5"></circle>
+          <path stroke-linecap="round" d="M12 7.5v5l3 2"></path>
+        </svg>
+      </div>
+      <div class="dashboard-brand-copy">
+        <h1 class="dashboard-brand-title">Pon<span>Tolentx</span></h1>
+        <p class="dashboard-brand-subtitle">Automated time tracking</p>
       </div>
     </div>
 
-    <div class="week-row">
-      <div class="week-row-title">Próxima semana</div>
-      <div class="days-grid" id="days-grid-next">
-        {% for day in next_week_days %}
-          {{ render_day_card(day) }}
-        {% endfor %}
+    <div class="dashboard-header-actions">
+      <div class="theme-toggle" role="group" aria-label="Alternar tema visual">
+        <button type="button" class="theme-toggle-btn" data-theme-value="classic" onclick="setTheme('classic')">Clássico</button>
+        <button type="button" class="theme-toggle-btn is-active" data-theme-value="theme-2" onclick="setTheme('theme-2')">Tema 2.0</button>
       </div>
+      <a href="/setup" class="btn btn-ghost btn-sm header-action-btn">Configurações</a>
+      <form method="POST" action="/logout" style="margin:0">
+        <button type="submit" class="btn btn-ghost btn-sm header-action-btn">Sair</button>
+      </form>
     </div>
   </div>
-</div>
+</header>
 
-<!-- Test-run modal -->
+<main class="dashboard-shell">
+  <section class="control-panel">
+    <div class="scheduler-card {{ 'is-live' if scheduler_running else 'is-idle' }}">
+      <span class="scheduler-dot"></span>
+      <div class="scheduler-copy">
+        <span class="scheduler-label">Agendador</span>
+        <span class="scheduler-value">{{ 'Ativo · sincronizado' if scheduler_running else 'Inativo · aguardando' }}</span>
+      </div>
+      {% if scheduler_running %}
+        <button class="btn btn-danger btn-sm scheduler-action" onclick="toggleScheduler(false)">Pausar</button>
+      {% else %}
+        <button class="btn btn-primary btn-sm scheduler-action" onclick="toggleScheduler(true)">Iniciar</button>
+      {% endif %}
+    </div>
+
+    <div class="range-navigator">
+      <button class="nav-arrow" onclick="navigateWeek(-7)" aria-label="Semana anterior">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"></path>
+        </svg>
+      </button>
+      <div class="range-copy">
+        <span class="range-title" id="nav-range-label">{{ dashboard.labels.nav_range }}</span>
+        <span class="range-subtitle" id="nav-range-subtitle">{{ dashboard.labels.nav_subtitle }}</span>
+      </div>
+      <button class="nav-arrow" onclick="navigateWeek(7)" aria-label="Próxima semana">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"></path>
+        </svg>
+      </button>
+    </div>
+
+    <div class="control-actions">
+      <button class="btn btn-ghost btn-sm control-action-btn" onclick="importHolidays()">Importar feriados</button>
+      <button class="btn btn-highlight btn-sm control-action-btn" onclick="openTestModal()">Testar agora</button>
+    </div>
+  </section>
+
+  <section class="metrics-grid" id="stats-grid">
+    {% for metric in dashboard.summary.metrics %}
+      {{ render_metric(metric, loop.index0) }}
+    {% endfor %}
+  </section>
+
+  <section class="week-section">
+    <div class="week-section-head">
+      <div class="week-section-heading">
+        <h2 class="week-section-title" id="week-title-current">{{ dashboard.labels.weeks[0].title }}</h2>
+        <span class="week-section-range" id="week-range-current">{{ dashboard.labels.weeks[0].range }}</span>
+      </div>
+      <div class="week-section-line"></div>
+    </div>
+    <div class="days-grid" id="days-grid-current">
+      {% for day in dashboard.weeks[0] %}
+        {{ render_day_card(day, loop.index0) }}
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="week-section">
+    <div class="week-section-head">
+      <div class="week-section-heading">
+        <h2 class="week-section-title" id="week-title-next">{{ dashboard.labels.weeks[1].title }}</h2>
+        <span class="week-section-range" id="week-range-next">{{ dashboard.labels.weeks[1].range }}</span>
+      </div>
+      <div class="week-section-line"></div>
+    </div>
+    <div class="days-grid" id="days-grid-next">
+      {% for day in dashboard.weeks[1] %}
+        {{ render_day_card(day, loop.index0 + 5) }}
+      {% endfor %}
+    </div>
+  </section>
+
+  <footer class="dashboard-footer">
+    PonTolentx · {{ 'agendador ativo' if scheduler_running else 'agendador inativo' }} · visual clássico e 2.0
+  </footer>
+</main>
+
 <div class="modal-overlay" id="test-modal">
-  <div class="modal" style="width:480px;">
-    <h3>Modo de Teste — Dry Run</h3>
-    <p style="font-size:12px;color:var(--text-dim);margin-bottom:16px;line-height:1.6;">
+  <div class="modal modal-wide">
+    <h3>Modo de teste</h3>
+    <p class="modal-lead">
       O fluxo completo de autenticação será executado, mas o ponto <strong>não será registrado</strong>.
-      O teste para antes de clicar no botão de tipo de ponto.
+      O teste para antes do clique final do tipo de ponto.
     </p>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+    <div class="modal-form-grid">
       <div class="form-group">
-        <label style="font-size:11px;color:var(--text-dim);">Tipo de ponto a simular</label>
-        <select id="test-punch-type" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px 10px;font-size:13px;width:100%;">
+        <label>Tipo de ponto a simular</label>
+        <select id="test-punch-type">
           <option value="entrada">Entrada</option>
           <option value="pausa">Pausa almoço</option>
           <option value="retorno">Retorno</option>
@@ -166,37 +270,31 @@
         </select>
       </div>
       <div class="form-group">
-        <label style="font-size:11px;color:var(--text-dim);">Modo do teste</label>
-        <select id="test-mode" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px 10px;font-size:13px;width:100%;">
-          <option value="visual">Visual (passo a passo)</option>
-          <option value="headless">Headless (log ao vivo)</option>
+        <label>Modo do teste</label>
+        <select id="test-mode">
+          <option value="visual">Visual</option>
+          <option value="headless">Headless</option>
         </select>
       </div>
     </div>
 
-    <!-- Headless log panel -->
-    <div id="test-log-panel" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:16px;max-height:220px;overflow-y:auto;">
-      <div id="test-log-entries" style="font-size:12px;font-family:monospace;display:flex;flex-direction:column;gap:4px;"></div>
+    <div id="test-log-panel" class="test-log-panel">
+      <div id="test-log-entries" class="test-log-entries"></div>
     </div>
 
-    <!-- Visual mode hint -->
-    <div id="test-visual-hint" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:16px;font-size:12px;color:var(--text-dim);line-height:1.6;">
+    <div id="test-visual-hint" class="test-visual-hint">
       O Chrome abrirá em modo visual. Antes de cada clique, um overlay aparecerá na página do Pontotel com os botões
-      <strong style="color:#86efac;">CONFIRMAR</strong> e <strong style="color:#fca5a5;">CANCELAR</strong>.
-      Você também pode usar <kbd style="background:var(--surface);padding:1px 5px;border-radius:3px;border:1px solid var(--border);">Enter</kbd> e
-      <kbd style="background:var(--surface);padding:1px 5px;border-radius:3px;border:1px solid var(--border);">Esc</kbd>.
+      <strong>CONFIRMAR</strong> e <strong>CANCELAR</strong>. Você também pode usar
+      <kbd>Enter</kbd> e <kbd>Esc</kbd>.
     </div>
 
     <div class="modal-footer">
       <button class="btn btn-ghost btn-sm" onclick="closeTestModal()">Fechar</button>
-      <button class="btn btn-sm" id="test-run-btn"
-        style="background:var(--yellow);color:#000;font-weight:700;"
-        onclick="startTestRun()">Iniciar teste</button>
+      <button class="btn btn-highlight btn-sm" id="test-run-btn" onclick="startTestRun()">Iniciar teste</button>
     </div>
   </div>
 </div>
 
-<!-- Day type modal -->
 <div class="modal-overlay" id="day-modal">
   <div class="modal">
     <h3 id="modal-title">Configurar dia</h3>
@@ -205,23 +303,38 @@
     <div class="modal-options" id="modal-options">
       <label class="modal-option">
         <input type="radio" name="day_type" value="normal">
-        <div><div class="modal-option-label">Normal</div><div class="modal-option-desc">Registra os 4 pontos no horário programado</div></div>
+        <div>
+          <div class="modal-option-label">Normal</div>
+          <div class="modal-option-desc">Registra os 4 pontos no horário programado</div>
+        </div>
       </label>
       <label class="modal-option">
         <input type="radio" name="day_type" value="folga">
-        <div><div class="modal-option-label">Folga</div><div class="modal-option-desc">Nenhum ponto será registrado</div></div>
+        <div>
+          <div class="modal-option-label">Folga</div>
+          <div class="modal-option-desc">Nenhum ponto será registrado</div>
+        </div>
       </label>
       <label class="modal-option">
         <input type="radio" name="day_type" value="feriado">
-        <div><div class="modal-option-label">Feriado</div><div class="modal-option-desc">Nenhum ponto será registrado</div></div>
+        <div>
+          <div class="modal-option-label">Feriado</div>
+          <div class="modal-option-desc">Nenhum ponto será registrado</div>
+        </div>
       </label>
       <label class="modal-option">
         <input type="radio" name="day_type" value="facultativo">
-        <div><div class="modal-option-label">Ponto facultativo</div><div class="modal-option-desc">Nenhum ponto será registrado</div></div>
+        <div>
+          <div class="modal-option-label">Ponto facultativo</div>
+          <div class="modal-option-desc">Nenhum ponto será registrado</div>
+        </div>
       </label>
       <label class="modal-option" onclick="toggleHalfFields(true)">
         <input type="radio" name="day_type" value="meio_expediente">
-        <div><div class="modal-option-label">Meio expediente</div><div class="modal-option-desc">Define horários customizados para o dia</div></div>
+        <div>
+          <div class="modal-option-label">Meio expediente</div>
+          <div class="modal-option-desc">Define horários customizados para o dia</div>
+        </div>
       </label>
     </div>
 
@@ -237,7 +350,7 @@
           <input type="time" id="half-saida" value="12:30">
         </div>
       </div>
-      <p style="font-size:11px;color:var(--text-dim);margin-top:8px;">Apenas entrada e saída serão registradas.</p>
+      <p class="half-field-hint">Apenas entrada e saída serão registradas.</p>
     </div>
 
     <input class="modal-notes" type="text" id="modal-notes" placeholder="Observação (opcional)">
@@ -252,28 +365,213 @@
 <div class="toast-container" id="toast-container"></div>
 
 <script>
-  let currentWeekStart = "{{ week_start }}";
+  let dashboardData = {{ dashboard | tojson }};
+  let currentWeekStart = dashboardData.week_start;
 
-  // ── time input handling ──
-  function toggleEdit(btn) {
-    const actions = btn.closest('.pending-actions');
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
+  }
+
+  function setTheme(theme) {
+    document.documentElement.dataset.theme = theme;
+    try {
+      localStorage.setItem("ptx-theme", theme);
+    } catch (error) {
+      console.error(error);
+    }
+    syncThemeToggle();
+  }
+
+  function syncThemeToggle() {
+    const currentTheme = document.documentElement.dataset.theme || "theme-2";
+    document.querySelectorAll(".theme-toggle-btn").forEach((button) => {
+      const isActive = button.dataset.themeValue === currentTheme;
+      button.classList.toggle("is-active", isActive);
+      button.setAttribute("aria-pressed", isActive ? "true" : "false");
+    });
+  }
+
+  function renderMetric(metric, index) {
+    return `
+      <article class="metric-card metric-accent-${escapeHtml(metric.accent || "muted")} fade-up" style="animation-delay:${index * 60}ms;">
+        <p class="metric-label">${escapeHtml(metric.label)}</p>
+        <p class="metric-value">${escapeHtml(metric.value)}</p>
+        <p class="metric-hint">${escapeHtml(metric.hint)}</p>
+      </article>
+    `;
+  }
+
+  function renderSpecialDay(day) {
+    const copyByType = {
+      feriado: "Nenhum ponto será registrado",
+      folga: "Dia configurado como folga",
+      facultativo: "Ponto facultativo configurado",
+    };
+
+    return `
+      <div class="day-special day-special-${escapeHtml(day.day_type)}">
+        <div class="day-special-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path>
+          </svg>
+        </div>
+        <p class="day-special-title">${escapeHtml(day.notes || day.day_type_label)}</p>
+        <p class="day-special-subtitle">${escapeHtml(copyByType[day.day_type] || "Nenhum ponto será registrado")}</p>
+      </div>
+    `;
+  }
+
+  function renderStatusBadge(day) {
+    if (day.is_today) {
+      return `<span class="status-badge status-badge-today">Hoje</span>`;
+    }
+
+    let label = "Normal";
+    let badgeClass = "status-badge-normal";
+
+    if (day.day_type === "feriado") {
+      label = "Feriado";
+      badgeClass = "status-badge-holiday";
+    } else if (day.day_type === "folga") {
+      label = "Folga";
+      badgeClass = "status-badge-info";
+    } else if (day.day_type === "facultativo") {
+      label = "Facultativo";
+      badgeClass = "status-badge-info";
+    } else if (day.day_type === "meio_expediente") {
+      label = "Meio expediente";
+      badgeClass = "status-badge-info";
+    } else if (day.show_balance && day.balance_type === "extra") {
+      label = "Hora extra";
+      badgeClass = "status-badge-overtime";
+    }
+
+    return `<button type="button" class="status-badge ${badgeClass}" onclick="openDayModal('${escapeHtml(day.date)}', '${escapeHtml(day.day_type)}')">${escapeHtml(label)}</button>`;
+  }
+
+  function renderPunch(punch, day) {
+    const scheduled = escapeHtml(punch.scheduled_time || "--");
+
+    if (punch.status === "registrado") {
+      return `<div class="punch-row"><span class="punch-label">${escapeHtml(punch.label)}</span><span class="punch-time-display registered">Ag ${scheduled} · Ex ${escapeHtml(punch.actual_time || "—")}</span></div>`;
+    }
+    if (punch.status === "erro") {
+      return `<div class="punch-row"><span class="punch-label">${escapeHtml(punch.label)}</span><span class="punch-time-display error">Ag ${scheduled} · Ex erro</span></div>`;
+    }
+    if (punch.status === "ignorado") {
+      return `<div class="punch-row"><span class="punch-label">${escapeHtml(punch.label)}</span><span class="punch-time-display ignored">Ag ${scheduled} · Ex ignorado</span></div>`;
+    }
+    if (punch.status === "nao_executado") {
+      return `<div class="punch-row"><span class="punch-label">${escapeHtml(punch.label)}</span><span class="punch-time-display not-executed">Ag ${scheduled} · Ex pendente</span></div>`;
+    }
+    if (punch.id && !day.is_past) {
+      const nowButton = day.is_today
+        ? `<button class="btn btn-ghost btn-sm punch-now-btn" data-label="${escapeHtml(punch.label)}" onclick="punchNow('${escapeHtml(punch.punch_type)}', this)">Bater agora</button>`
+        : "";
+
+      return `
+        <div class="punch-row">
+          <span class="punch-label">${escapeHtml(punch.label)}</span>
+          <div class="punch-actions pending-actions">
+            <span class="punch-time-display pending">Ag ${scheduled} · Ex —</span>
+            <button class="btn btn-ghost btn-sm inline-edit-btn" onclick="toggleEdit(this)">Editar</button>
+            <div class="punch-edit-controls">
+              <input class="punch-time-input" type="time" value="${escapeHtml(punch.scheduled_time || "")}" data-id="${escapeHtml(punch.id)}" data-original="${escapeHtml(punch.scheduled_time || "")}" onkeydown="if(event.key==='Enter') saveTime(this)">
+              <button class="save-btn visible" onclick="saveTime(this.previousElementSibling)">Salvar</button>
+              <button class="btn btn-ghost btn-sm cancel-edit-btn" onclick="cancelEdit(this)">Cancelar</button>
+            </div>
+            ${nowButton}
+          </div>
+        </div>
+      `;
+    }
+    if (punch.scheduled_time) {
+      return `<div class="punch-row"><span class="punch-label">${escapeHtml(punch.label)}</span><span class="punch-time-display">Ag ${scheduled} · Ex —</span></div>`;
+    }
+    return `<div class="punch-row"><span class="punch-label">${escapeHtml(punch.label)}</span><span class="punch-time-display is-muted">Ag — · Ex —</span></div>`;
+  }
+
+  function renderDay(day, index) {
+    const isOff = ["feriado", "folga", "facultativo"].includes(day.day_type);
+    const classes = ["day-card", "fade-up"];
+    if (day.is_today) classes.push("is-today");
+    if (day.is_past) classes.push("is-past");
+    if (isOff) classes.push("is-special", `is-${day.day_type}`);
+    if (day.day_type === "meio_expediente") classes.push("is-meio_expediente");
+
+    const footer = day.show_balance && !isOff
+      ? `
+        <footer class="day-balance day-balance-${escapeHtml(day.balance_type || "neutral")}">
+          <div class="day-balance-meta">
+            <span class="day-balance-dot"></span>
+            <span class="day-balance-label">${escapeHtml(day.balance_title || "Saldo do dia")}</span>
+          </div>
+          <span class="day-balance-value">${day.balance_minutes > 0 ? "+" : ""}${escapeHtml(day.balance_label || "--")}</span>
+        </footer>
+      `
+      : "";
+
+    return `
+      <article class="${classes.join(" ")}" style="animation-delay:${index * 40}ms;" data-date="${escapeHtml(day.date)}">
+        <header class="day-card-header">
+          <div>
+            <p class="day-card-weekday">${escapeHtml(day.weekday)}</p>
+            <p class="day-card-date">${escapeHtml(day.date.slice(8))}/${escapeHtml(day.date.slice(5, 7))}</p>
+          </div>
+          <div>${renderStatusBadge(day)}</div>
+        </header>
+        ${isOff ? renderSpecialDay(day) : `<div class="punches-list">${day.punches.map((punch) => renderPunch(punch, day)).join("")}</div>`}
+        ${footer}
+      </article>
+    `;
+  }
+
+  function renderDashboard(payload) {
+    dashboardData = payload;
+    currentWeekStart = payload.week_start;
+
+    document.getElementById("nav-range-label").textContent = payload.labels.nav_range;
+    document.getElementById("nav-range-subtitle").textContent = payload.labels.nav_subtitle;
+    document.getElementById("week-title-current").textContent = payload.labels.weeks[0].title;
+    document.getElementById("week-title-next").textContent = payload.labels.weeks[1].title;
+    document.getElementById("week-range-current").textContent = payload.labels.weeks[0].range;
+    document.getElementById("week-range-next").textContent = payload.labels.weeks[1].range;
+    document.getElementById("stats-grid").innerHTML = payload.summary.metrics.map((metric, index) => renderMetric(metric, index)).join("");
+    document.getElementById("days-grid-current").innerHTML = payload.weeks[0].map((day, index) => renderDay(day, index)).join("");
+    document.getElementById("days-grid-next").innerHTML = payload.weeks[1].map((day, index) => renderDay(day, index + 5)).join("");
+  }
+
+  async function refreshDashboard() {
+    const response = await fetch(`/api/week/${currentWeekStart}`);
+    if (response.ok) {
+      renderDashboard(await response.json());
+    }
+  }
+
+  function toggleEdit(button) {
+    const actions = button.closest(".pending-actions");
     if (!actions) return;
-    actions.classList.add('editing');
-    const input = actions.querySelector('.punch-time-input');
+    actions.classList.add("editing");
+    const input = actions.querySelector(".punch-time-input");
     if (input) {
       input.focus();
       input.select();
     }
   }
 
-  function cancelEdit(btn) {
-    const actions = btn.closest('.pending-actions');
+  function cancelEdit(button) {
+    const actions = button.closest(".pending-actions");
     if (!actions) return;
-    const input = actions.querySelector('.punch-time-input');
-    if (input && input.dataset.original) {
-      input.value = input.dataset.original;
+    const input = actions.querySelector(".punch-time-input");
+    if (input) {
+      input.value = input.dataset.original || "";
     }
-    actions.classList.remove('editing');
+    actions.classList.remove("editing");
   }
 
   async function saveTime(input) {
@@ -281,357 +579,245 @@
     const value = input.value;
     if (!value) return;
 
-    const res = await fetch(`/api/schedule/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ scheduled_time: value })
+    const response = await fetch(`/api/schedule/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scheduled_time: value }),
     });
 
-    if (res.ok) {
-      input.dataset.original = value;
-      const actions = input.closest('.pending-actions');
-      if (actions) {
-        const text = actions.querySelector('.punch-time-display');
-        if (text) text.textContent = `Ag: ${value} · Ex: —`;
-        actions.classList.remove('editing');
-      }
-      toast('Horário atualizado', 'success');
-    } else {
-      toast('Erro ao salvar horário', 'error');
+    if (!response.ok) {
+      toast("Erro ao salvar horário", "error");
+      return;
     }
+
+    await refreshDashboard();
+    toast("Horário atualizado", "success");
   }
 
-  // ── scheduler ──
   async function toggleScheduler(start) {
-    const url = start ? '/api/scheduler/start' : '/api/scheduler/stop';
+    const url = start ? "/api/scheduler/start" : "/api/scheduler/stop";
     try {
-      const res = await fetch(url, { method: 'POST' });
-      if (res.ok) {
+      const response = await fetch(url, { method: "POST" });
+      if (response.ok) {
         location.reload();
-      } else {
-        const err = await res.json().catch(() => ({}));
-        toast('Erro ao ' + (start ? 'iniciar' : 'pausar') + ' agendador: ' + (err.error || res.status), 'error');
+        return;
       }
-    } catch (e) {
-      toast('Falha de conexão ao agendador', 'error');
+
+      const error = await response.json().catch(() => ({}));
+      toast(`Erro ao ${start ? "iniciar" : "pausar"} agendador: ${error.error || response.status}`, "error");
+    } catch (error) {
+      toast("Falha de conexão ao agendador", "error");
     }
   }
 
-  // ── punch now ──
-  async function punchNow(punchType, btn) {
-    if (!confirm(`Registrar "${btn.dataset.label}" agora de verdade?`)) return;
-    btn.disabled = true;
-    btn.textContent = '...';
-    const res = await fetch('/api/punch-now', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ punch_type: punchType })
+  async function punchNow(punchType, button) {
+    if (!confirm(`Registrar "${button.dataset.label}" agora de verdade?`)) return;
+
+    button.disabled = true;
+    button.textContent = "...";
+
+    const response = await fetch("/api/punch-now", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ punch_type: punchType }),
     });
-    const data = await res.json();
+
+    const data = await response.json();
     if (data.started) {
-      toast('Registro iniciado — aguarde...', 'success');
+      toast("Registro iniciado — aguarde...", "success");
       setTimeout(() => location.reload(), 25000);
-    } else {
-      toast(data.error || 'Erro ao registrar', 'error');
-      btn.disabled = false;
-      btn.textContent = 'Bater agora';
+      return;
     }
+
+    toast(data.error || "Erro ao registrar", "error");
+    button.disabled = false;
+    button.textContent = "Bater agora";
   }
 
-  // ── week navigation ──
   async function navigateWeek(days) {
-    const d = new Date(currentWeekStart + 'T00:00:00');
-    d.setDate(d.getDate() + days);
-    const newStart = d.toISOString().slice(0, 10);
+    const baseDate = new Date(`${currentWeekStart}T00:00:00`);
+    baseDate.setDate(baseDate.getDate() + days);
+    const newStart = baseDate.toISOString().slice(0, 10);
 
-    const res = await fetch(`/api/week/${newStart}`);
-    if (!res.ok) return;
+    const response = await fetch(`/api/week/${newStart}`);
+    if (!response.ok) return;
 
-    const weekData = await res.json();
-    currentWeekStart = newStart;
-    renderWeeksBlock(weekData);
+    renderDashboard(await response.json());
   }
 
-  function renderWeeksBlock(payload) {
-    const currentDays = payload.weeks?.[0] || [];
-    const nextDays = payload.weeks?.[1] || [];
-
-    const currentLabel = currentDays.length
-      ? `${currentDays[0].date} — ${currentDays[currentDays.length - 1].date}`
-      : '--';
-    const nextLabel = nextDays.length
-      ? `${nextDays[0].date} — ${nextDays[nextDays.length - 1].date}`
-      : '--';
-
-    document.getElementById('week-label-current').textContent = currentLabel;
-    document.getElementById('week-label-next').textContent = nextLabel;
-    renderWeek(currentDays, 'days-grid-current');
-    renderWeek(nextDays, 'days-grid-next');
-  }
-
-  function renderWeek(days, gridId) {
-    const grid = document.getElementById(gridId);
-    if (!grid) return;
-    grid.innerHTML = days.map(renderDay).join('');
-  }
-
-  function renderDay(day) {
-    const isOff = ['feriado', 'folga', 'facultativo'].includes(day.day_type);
-    const classes = [
-      'day-card',
-      day.is_today ? 'is-today' : '',
-      day.is_past  ? 'is-past'  : '',
-      isOff        ? `is-${day.day_type}` : ''
-    ].filter(Boolean).join(' ');
-
-    const badgeHtml = renderBadge(day);
-    const bodyHtml  = isOff
-      ? `<div class="no-schedule">${day.notes || 'Sem registro neste dia'}</div>`
-      : `<div class="punches-list">${day.punches.map(p => renderPunch(p, day)).join('')}</div>`;
-    const balanceHtml = renderBalance(day);
-
-    return `
-      <div class="${classes}" data-date="${day.date}">
-        <div class="day-header">
-          <div>
-            <div class="day-name">${day.weekday}</div>
-            <div class="day-date">${day.date.slice(8)}/${day.date.slice(5,7)}</div>
-          </div>
-          <div>${badgeHtml}</div>
-        </div>
-        ${bodyHtml}
-        ${balanceHtml}
-      </div>`;
-  }
-
-  function renderBalance(day) {
-    if (!day.show_balance) return '';
-    return `
-      <div class="day-balance day-balance-${day.balance_type}">
-        <span class="day-balance-label">${day.balance_title}</span>
-        <span class="day-balance-value">${day.balance_label}</span>
-      </div>`;
-  }
-
-  function renderBadge(day) {
-    const label = { normal:'Normal', feriado:'Feriado', folga:'Folga', facultativo:'Ponto facultativo', meio_expediente:'Meio expediente' };
-    const cls   = { normal:'', feriado:'holiday-badge', folga:'folga-badge', facultativo:'folga-badge', meio_expediente:'meio-badge' };
-    if (day.is_today) return `<span class="day-badge today-badge">Hoje</span>`;
-    return `<span class="day-badge ${cls[day.day_type] || ''}" onclick="openDayModal('${day.date}','${day.day_type}')">${label[day.day_type] || day.day_type}</span>`;
-  }
-
-  function renderPunch(punch, day) {
-    const scheduled = punch.scheduled_time || '--';
-    if (punch.status === 'registrado')
-      return `<div class="punch-row"><span class="punch-label">${punch.label}</span><span class="punch-time-display registered">Ag: ${scheduled} · Ex: ${punch.actual_time || '—'}</span></div>`;
-    if (punch.status === 'erro')
-      return `<div class="punch-row"><span class="punch-label">${punch.label}</span><span class="punch-time-display error">Ag: ${scheduled} · Ex: Erro</span></div>`;
-    if (punch.status === 'ignorado')
-      return `<div class="punch-row"><span class="punch-label">${punch.label}</span><span class="punch-time-display ignored">Ag: ${scheduled} · Ex: Ignorado</span></div>`;
-    if (punch.status === 'nao_executado')
-      return `<div class="punch-row"><span class="punch-label">${punch.label}</span><span class="punch-time-display not-executed">Ag: ${scheduled} · Ex: —</span></div>`;
-    if (punch.id && !day.is_past) {
-      const nowBtn = day.is_today
-        ? `<button class="btn btn-ghost btn-sm punch-now-btn" style="font-size:11px;padding:2px 8px;white-space:nowrap;"
-             data-label="${punch.label}"
-             onclick="punchNow('${punch.punch_type}', this)">Bater agora</button>`
-        : '';
-      return `<div class="punch-row">
-        <span class="punch-label">${punch.label}</span>
-        <div class="punch-actions pending-actions">
-          <span class="punch-time-display pending">Ag: ${scheduled} · Ex: —</span>
-          <button class="btn btn-ghost btn-sm edit-time-btn" onclick="toggleEdit(this)">Editar</button>
-          <div class="punch-edit-controls">
-            <input class="punch-time-input" type="time" value="${punch.scheduled_time || ''}"
-                   data-id="${punch.id}" data-original="${punch.scheduled_time || ''}"
-                   onkeydown="if(event.key==='Enter') saveTime(this)">
-            <button class="save-btn visible" onclick="saveTime(this.previousElementSibling)">Salvar</button>
-            <button class="btn btn-ghost btn-sm cancel-edit-btn" onclick="cancelEdit(this)">Cancelar</button>
-          </div>
-          ${nowBtn}
-        </div>
-      </div>`;
-    }
-    return `<div class="punch-row"><span class="punch-label">${punch.label}</span><span class="punch-time-display">Ag: ${punch.scheduled_time || '—'} · Ex: —</span></div>`;
-  }
-
-  // ── day type modal ──
   function openDayModal(date, currentType) {
-    document.getElementById('modal-date').value = date;
-    document.getElementById('modal-title').textContent = `Configurar ${date.slice(8)}/${date.slice(5,7)}`;
-    document.getElementById('modal-notes').value = '';
-    document.getElementById('half-fields').classList.remove('visible');
+    document.getElementById("modal-date").value = date;
+    document.getElementById("modal-title").textContent = `Configurar ${date.slice(8)}/${date.slice(5, 7)}`;
+    document.getElementById("modal-notes").value = "";
+    document.getElementById("half-fields").classList.remove("visible");
 
-    const radios = document.querySelectorAll('input[name=day_type]');
-    radios.forEach(r => {
-      r.checked = r.value === currentType;
-      r.closest('.modal-option').addEventListener('click', () => {
-        toggleHalfFields(r.value === 'meio_expediente');
-      });
+    const radios = document.querySelectorAll("input[name=day_type]");
+    radios.forEach((radio) => {
+      radio.checked = radio.value === currentType;
+      radio.closest(".modal-option").onclick = () => {
+        toggleHalfFields(radio.value === "meio_expediente");
+      };
     });
 
-    document.getElementById('day-modal').classList.add('open');
+    document.getElementById("day-modal").classList.add("open");
   }
 
   function closeModal() {
-    document.getElementById('day-modal').classList.remove('open');
+    document.getElementById("day-modal").classList.remove("open");
   }
 
   function toggleHalfFields(show) {
-    document.getElementById('half-fields').classList.toggle('visible', show);
+    document.getElementById("half-fields").classList.toggle("visible", show);
   }
 
   async function saveDayType() {
-    const date = document.getElementById('modal-date').value;
-    const dayType = document.querySelector('input[name=day_type]:checked')?.value;
-    const notes = document.getElementById('modal-notes').value;
+    const currentDate = document.getElementById("modal-date").value;
+    const dayType = document.querySelector("input[name=day_type]:checked")?.value;
+    const notes = document.getElementById("modal-notes").value;
 
     if (!dayType) return;
 
-    let customJson = '{}';
-    if (dayType === 'meio_expediente') {
+    let customJson = "{}";
+    if (dayType === "meio_expediente") {
       customJson = JSON.stringify({
-        punch_types: ['entrada', 'saida'],
-        entrada: document.getElementById('half-entrada').value,
-        saida:   document.getElementById('half-saida').value,
+        punch_types: ["entrada", "saida"],
+        entrada: document.getElementById("half-entrada").value,
+        saida: document.getElementById("half-saida").value,
       });
     }
 
-    if (dayType === 'normal') {
-      await fetch(`/api/special-day/${date}`, { method: 'DELETE' });
+    if (dayType === "normal") {
+      await fetch(`/api/special-day/${currentDate}`, { method: "DELETE" });
     } else {
-      await fetch('/api/special-day', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date, day_type: dayType, notes, custom_json: customJson })
+      await fetch("/api/special-day", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: currentDate, day_type: dayType, notes, custom_json: customJson }),
       });
     }
 
     closeModal();
-    toast('Dia atualizado', 'success');
-    // Reload week to reflect changes
-    const res = await fetch(`/api/week/${currentWeekStart}`);
-    if (res.ok) renderWeeksBlock(await res.json());
+    await refreshDashboard();
+    toast("Dia atualizado", "success");
   }
 
-  // ── holidays ──
   async function importHolidays() {
-    const res = await fetch('/api/holidays/import', { method: 'POST' });
-    if (res.ok) {
-      const data = await res.json();
-      toast(`${data.imported} feriados importados`, 'success');
-      const r2 = await fetch(`/api/week/${currentWeekStart}`);
-      if (r2.ok) renderWeeksBlock(await r2.json());
-    } else {
-      toast('Erro ao importar feriados', 'error');
+    const response = await fetch("/api/holidays/import", { method: "POST" });
+    if (!response.ok) {
+      toast("Erro ao importar feriados", "error");
+      return;
     }
+
+    const data = await response.json();
+    await refreshDashboard();
+    toast(`${data.imported} feriados importados`, "success");
   }
 
-  // ── toast ──
-  function toast(msg, type = 'success') {
-    const container = document.getElementById('toast-container');
-    const el = document.createElement('div');
-    el.className = `toast toast-${type}`;
-    el.textContent = msg;
-    container.appendChild(el);
-    setTimeout(() => el.remove(), 3500);
+  function toast(message, type = "success") {
+    const container = document.getElementById("toast-container");
+    const toastElement = document.createElement("div");
+    toastElement.className = `toast toast-${type}`;
+    toastElement.textContent = message;
+    container.appendChild(toastElement);
+    setTimeout(() => toastElement.remove(), 3500);
   }
 
-  // Close modal on overlay click
-  document.getElementById('day-modal').addEventListener('click', function(e) {
-    if (e.target === this) closeModal();
-  });
-
-  document.getElementById('test-modal').addEventListener('click', function(e) {
-    if (e.target === this) closeTestModal();
-  });
-
-  document.getElementById('test-mode').addEventListener('change', function() {
-    updateTestModeHint(this.value);
-  });
-
-  // ── test-run modal ──
   function openTestModal() {
-    document.getElementById('test-modal').classList.add('open');
-    document.getElementById('test-log-panel').style.display = 'none';
-    document.getElementById('test-log-entries').innerHTML = '';
-    document.getElementById('test-run-btn').disabled = false;
-    updateTestModeHint(document.getElementById('test-mode').value);
+    document.getElementById("test-modal").classList.add("open");
+    document.getElementById("test-log-panel").style.display = "none";
+    document.getElementById("test-log-entries").innerHTML = "";
+    document.getElementById("test-run-btn").disabled = false;
+    document.getElementById("test-run-btn").textContent = "Iniciar teste";
+    updateTestModeHint(document.getElementById("test-mode").value);
   }
 
   function closeTestModal() {
-    document.getElementById('test-modal').classList.remove('open');
+    document.getElementById("test-modal").classList.remove("open");
   }
 
   function updateTestModeHint(mode) {
-    document.getElementById('test-visual-hint').style.display = mode === 'visual' ? 'block' : 'none';
-    document.getElementById('test-log-panel').style.display = mode === 'headless' ? 'block' : 'none';
+    document.getElementById("test-visual-hint").style.display = mode === "visual" ? "block" : "none";
+    document.getElementById("test-log-panel").style.display = mode === "headless" ? "block" : "none";
   }
 
   function appendLogEntry(message, ok) {
-    const entry = document.createElement('div');
-    entry.style.cssText = `color:${ok ? '#86efac' : '#fca5a5'};padding:2px 0;`;
-    entry.textContent = `${ok ? '✓' : '✗'} ${message}`;
-    const container = document.getElementById('test-log-entries');
+    const entry = document.createElement("div");
+    entry.className = `test-log-entry ${ok ? "is-ok" : "is-error"}`;
+    entry.textContent = `${ok ? "[ok]" : "[x]"} ${message}`;
+    const container = document.getElementById("test-log-entries");
     container.appendChild(entry);
     container.scrollTop = container.scrollHeight;
   }
 
   async function startTestRun() {
-    const punchType = document.getElementById('test-punch-type').value;
-    const mode = document.getElementById('test-mode').value;
-    const btn = document.getElementById('test-run-btn');
+    const punchType = document.getElementById("test-punch-type").value;
+    const mode = document.getElementById("test-mode").value;
+    const button = document.getElementById("test-run-btn");
 
-    btn.disabled = true;
-    btn.textContent = 'Executando...';
+    button.disabled = true;
+    button.textContent = "Executando...";
 
-    if (mode === 'headless') {
-      document.getElementById('test-log-panel').style.display = 'block';
-      document.getElementById('test-log-entries').innerHTML = '';
+    if (mode === "headless") {
+      document.getElementById("test-log-panel").style.display = "block";
+      document.getElementById("test-log-entries").innerHTML = "";
 
-      const startRes = await fetch('/api/test-run', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ punch_type: punchType, mode: 'headless' })
+      const startResponse = await fetch("/api/test-run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ punch_type: punchType, mode: "headless" }),
       });
 
-      if (!startRes.ok) {
-        const err = await startRes.json();
-        appendLogEntry(err.error || 'Erro ao iniciar teste', false);
-        btn.disabled = false;
-        btn.textContent = 'Iniciar teste';
+      if (!startResponse.ok) {
+        const error = await startResponse.json();
+        appendLogEntry(error.error || "Erro ao iniciar teste", false);
+        button.disabled = false;
+        button.textContent = "Iniciar teste";
         return;
       }
 
-      const evtSource = new EventSource('/api/test-run/stream');
-      evtSource.onmessage = (e) => {
-        const data = JSON.parse(e.data);
+      const eventSource = new EventSource("/api/test-run/stream");
+      eventSource.onmessage = (event) => {
+        const data = JSON.parse(event.data);
         if (data.done) {
-          evtSource.close();
-          btn.disabled = false;
-          btn.textContent = 'Iniciar teste';
+          eventSource.close();
+          button.disabled = false;
+          button.textContent = "Iniciar teste";
           return;
         }
         appendLogEntry(data.step, data.ok);
       };
-      evtSource.onerror = () => {
-        evtSource.close();
-        btn.disabled = false;
-        btn.textContent = 'Iniciar teste';
+      eventSource.onerror = () => {
+        eventSource.close();
+        button.disabled = false;
+        button.textContent = "Iniciar teste";
       };
-
-    } else {
-      // Visual mode: fire and forget, user interacts with Chrome window
-      await fetch('/api/test-run', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ punch_type: punchType, mode: 'visual' })
-      });
-      toast('Chrome abrirá — confirme cada passo no overlay da página', 'success');
-      btn.disabled = false;
-      btn.textContent = 'Iniciar teste';
+      return;
     }
+
+    await fetch("/api/test-run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ punch_type: punchType, mode: "visual" }),
+    });
+    toast("Chrome abrirá — confirme cada passo no overlay da página", "success");
+    button.disabled = false;
+    button.textContent = "Iniciar teste";
   }
+
+  document.getElementById("day-modal").addEventListener("click", function (event) {
+    if (event.target === this) closeModal();
+  });
+
+  document.getElementById("test-modal").addEventListener("click", function (event) {
+    if (event.target === this) closeTestModal();
+  });
+
+  document.getElementById("test-mode").addEventListener("change", function () {
+    updateTestModeHint(this.value);
+  });
+
+  syncThemeToggle();
+  updateTestModeHint(document.getElementById("test-mode").value);
 </script>
 </body>
 </html>
