@@ -411,6 +411,26 @@ def setup():
     if request.method == "POST":
         data = request.form
         schedule_pattern_changed = False
+        panel_password = data.get("panel_password", "").strip()
+        panel_password_confirm = data.get("panel_password_confirm", "").strip()
+
+        if panel_password or panel_password_confirm:
+            if len(panel_password) < 6:
+                error = "A nova senha do painel precisa ter pelo menos 6 caracteres."
+            elif panel_password != panel_password_confirm:
+                error = "A confirmação da nova senha do painel não confere."
+
+        if error:
+            config["browser_channel"] = normalize_browser(config.get("browser_channel"))
+            for browser in iter_browser_keys():
+                config_key = get_profile_config_key(browser)
+                config[config_key] = _sanitize_profile_path(browser, config.get(config_key, ""))
+            return render_template(
+                "setup.html",
+                config=config,
+                error=error,
+                punch_labels=PUNCH_LABEL,
+            ), 400
 
         browser_channel = normalize_browser(data.get("browser_channel"))
         db.set_config("email", data.get("email", "").strip())
@@ -430,6 +450,9 @@ def setup():
         raw_pin = data.get("pin", "").strip()
         if raw_pin:
             db.set_config("pin_enc", db.encrypt(raw_pin))
+
+        if panel_password:
+            db.update_auth_password(panel_password)
 
         for punch_type in ["entrada", "pausa", "retorno", "saida"]:
             base_key = f"{punch_type}_base"

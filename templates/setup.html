@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>Configurações — Ponto TolentX</title>
+  <title>Configurações — PonTolentx</title>
   <script>
     (function () {
       try {
@@ -25,7 +25,7 @@
         </svg>
       </div>
       <div class="dashboard-brand-copy">
-        <h1 class="dashboard-brand-title">Ponto<span>Tolentx</span></h1>
+        <h1 class="dashboard-brand-title">Pon<span>Tolentx</span></h1>
         <p class="dashboard-brand-subtitle">Configuration console</p>
       </div>
     </div>
@@ -144,6 +144,30 @@
             {% if config.pin_enc %}
             <span class="form-hint">Deixe em branco para manter o PIN atual.</span>
             {% endif %}
+          </div>
+        </div>
+      </section>
+
+      <section class="settings-section-card">
+        <div class="settings-section-head">
+          <div>
+            <p class="settings-section-eyebrow">Acesso local</p>
+            <h3>Senha do painel</h3>
+          </div>
+          <span class="settings-section-tag">Opcional</span>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Nova senha do painel</label>
+            <input type="password" name="panel_password" autocomplete="new-password" placeholder="Deixe em branco para manter">
+          </div>
+          <div class="form-group">
+            <label>Confirmar nova senha</label>
+            <input type="password" name="panel_password_confirm" autocomplete="new-password" placeholder="Repita a nova senha">
+          </div>
+          <div class="form-group full">
+            <span class="form-hint">Altera a senha usada na tela de login do PONTO TOLENTX. Não muda a senha da Pontotel.</span>
           </div>
         </div>
       </section>

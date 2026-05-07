@@ -352,6 +352,12 @@ def check_credentials(username: str, password: str) -> bool:
     return username == stored_user and check_password_hash(stored_hash, password)
 
 
+def update_auth_password(password: str) -> None:
+    """Updates the local panel login password."""
+    from werkzeug.security import generate_password_hash
+    set_config("auth_password_hash", generate_password_hash(password))
+
+
 def get_special_days_for_week(week_start: str) -> dict:
     from datetime import date, timedelta
     start = date.fromisoformat(week_start)

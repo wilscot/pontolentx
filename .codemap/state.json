@@ -1,15 +1,43 @@
 {
-  "updated_at": "2026-04-17T12:44:47.8929913-04:00",
-  "file_count": 26,
+  "updated_at": "2026-05-07T14:53:49.7792961-04:00",
+  "file_count": 106,
   "hubs": [
     "db.py"
   ],
   "importers": {
+    "browser_profiles.py": [
+      "app.py",
+      "punch.py"
+    ],
+    "daily-punch-tracker\\src\\components\\dashboard\\DayCard.tsx": [
+      "daily-punch-tracker\\src\\components\\dashboard\\WeekSection.tsx"
+    ],
+    "daily-punch-tracker\\src\\components\\dashboard\\PunchRow.tsx": [
+      "daily-punch-tracker\\src\\components\\dashboard\\DayCard.tsx"
+    ],
+    "daily-punch-tracker\\src\\components\\dashboard\\StatusBadge.tsx": [
+      "daily-punch-tracker\\src\\components\\dashboard\\DayCard.tsx"
+    ],
+    "daily-punch-tracker\\src\\components\\ui\\input-otp.tsx": [
+      "daily-punch-tracker\\src\\components\\ui\\input-otp.tsx"
+    ],
+    "daily-punch-tracker\\src\\components\\ui\\sonner.tsx": [
+      "daily-punch-tracker\\src\\components\\ui\\sonner.tsx"
+    ],
+    "daily-punch-tracker\\src\\routeTree.gen.ts": [
+      "daily-punch-tracker\\src\\router.tsx"
+    ],
+    "daily-punch-tracker\\src\\routes\\__root.tsx": [
+      "daily-punch-tracker\\src\\routeTree.gen.ts"
+    ],
+    "daily-punch-tracker\\src\\routes\\index.tsx": [
+      "daily-punch-tracker\\src\\routeTree.gen.ts"
+    ],
     "db.py": [
-      "holidays.py",
       "scheduler.py",
-      "punch.py",
-      "app.py"
+      "app.py",
+      "holidays.py",
+      "punch.py"
     ],
     "holidays.py": [
       "app.py"
@@ -28,6 +56,7 @@
   "imports": {
     "app.py": [
       "db.py",
+      "browser_profiles.py",
       "holidays.py",
       "punch.py",
       "scheduler.py"
@@ -35,11 +64,32 @@
     "auto_ponto.py": [
       "variable.py"
     ],
+    "daily-punch-tracker\\src\\components\\dashboard\\DayCard.tsx": [
+      "daily-punch-tracker\\src\\components\\dashboard\\StatusBadge.tsx",
+      "daily-punch-tracker\\src\\components\\dashboard\\PunchRow.tsx"
+    ],
+    "daily-punch-tracker\\src\\components\\dashboard\\WeekSection.tsx": [
+      "daily-punch-tracker\\src\\components\\dashboard\\DayCard.tsx"
+    ],
+    "daily-punch-tracker\\src\\components\\ui\\input-otp.tsx": [
+      "daily-punch-tracker\\src\\components\\ui\\input-otp.tsx"
+    ],
+    "daily-punch-tracker\\src\\components\\ui\\sonner.tsx": [
+      "daily-punch-tracker\\src\\components\\ui\\sonner.tsx"
+    ],
+    "daily-punch-tracker\\src\\routeTree.gen.ts": [
+      "daily-punch-tracker\\src\\routes\\__root.tsx",
+      "daily-punch-tracker\\src\\routes\\index.tsx"
+    ],
+    "daily-punch-tracker\\src\\router.tsx": [
+      "daily-punch-tracker\\src\\routeTree.gen.ts"
+    ],
     "holidays.py": [
       "db.py"
     ],
     "punch.py": [
-      "db.py"
+      "db.py",
+      "browser_profiles.py"
     ],
     "scheduler.py": [
       "db.py",
@@ -48,574 +98,41 @@
   },
   "recent_events": [
     {
-      "time": "2026-04-14T16:43:26.4481854-04:00",
-      "op": "CREATE",
-      "path": "app.py",
-      "lang": "python",
-      "lines": 588,
-      "delta": 588,
-      "size_delta": 18965,
-      "dirty": true,
-      "imports": 4,
-      "related_hot": [
-        "db.py"
-      ]
-    },
-    {
-      "time": "2026-04-14T16:43:29.3769793-04:00",
-      "op": "REMOVE",
-      "path": "app.py",
-      "lang": "python",
-      "delta": -588,
-      "size_delta": -18965,
-      "imports": 4,
-      "related_hot": [
-        "db.py"
-      ]
-    },
-    {
-      "time": "2026-04-14T16:43:29.3785531-04:00",
-      "op": "CREATE",
-      "path": "app.py",
-      "lang": "python",
-      "lines": 589,
-      "delta": 589,
-      "size_delta": 18981,
-      "dirty": true,
-      "imports": 4,
-      "related_hot": [
-        "db.py"
-      ]
-    },
-    {
-      "time": "2026-04-14T16:43:33.8128069-04:00",
-      "op": "REMOVE",
-      "path": "app.py",
-      "lang": "python",
-      "delta": -589,
-      "size_delta": -18981,
-      "imports": 4,
-      "related_hot": [
-        "db.py"
-      ]
-    },
-    {
-      "time": "2026-04-14T16:43:33.8138465-04:00",
-      "op": "CREATE",
-      "path": "app.py",
-      "lang": "python",
-      "lines": 590,
-      "delta": 590,
-      "size_delta": 19027,
-      "dirty": true,
-      "imports": 4,
-      "related_hot": [
-        "db.py"
-      ]
-    },
-    {
-      "time": "2026-04-14T17:43:44.611958-04:00",
+      "time": "2026-05-07T14:53:35.8515933-04:00",
       "op": "WRITE",
       "path": "db.py",
       "lang": "python",
-      "lines": 303,
-      "delta": 16,
-      "size_delta": 497,
-      "dirty": true,
-      "importers": 4,
-      "is_hub": true
-    },
-    {
-      "time": "2026-04-14T17:43:49.8373677-04:00",
-      "op": "WRITE",
-      "path": "scheduler.py",
-      "lang": "python",
-      "lines": 207,
-      "delta": 1,
-      "size_delta": 48,
-      "dirty": true,
-      "importers": 1,
-      "imports": 2,
-      "related_hot": [
-        "db.py"
-      ]
-    },
-    {
-      "time": "2026-04-14T17:44:00.0036484-04:00",
-      "op": "WRITE",
-      "path": "app.py",
-      "lang": "python",
-      "lines": 594,
-      "delta": 4,
-      "size_delta": 164,
-      "dirty": true,
-      "imports": 4,
-      "related_hot": [
-        "db.py",
-        "scheduler.py"
-      ]
-    },
-    {
-      "time": "2026-04-14T19:58:06.2843282-04:00",
-      "op": "WRITE",
-      "path": "db.py",
-      "lang": "python",
-      "lines": 341,
-      "delta": 38,
-      "size_delta": 1402,
-      "dirty": true,
-      "importers": 4,
-      "is_hub": true
-    },
-    {
-      "time": "2026-04-14T19:58:29.0710887-04:00",
-      "op": "WRITE",
-      "path": "scheduler.py",
-      "lang": "python",
-      "lines": 218,
-      "delta": 11,
-      "size_delta": 692,
-      "dirty": true,
-      "importers": 1,
-      "imports": 2,
-      "related_hot": [
-        "db.py"
-      ]
-    },
-    {
-      "time": "2026-04-14T19:58:48.9923948-04:00",
-      "op": "WRITE",
-      "path": "app.py",
-      "lang": "python",
-      "lines": 604,
-      "delta": 10,
-      "size_delta": 434,
-      "dirty": true,
-      "imports": 4,
-      "related_hot": [
-        "db.py",
-        "scheduler.py"
-      ]
-    },
-    {
-      "time": "2026-04-14T20:10:35.7388782-04:00",
-      "op": "WRITE",
-      "path": "scheduler.py",
-      "lang": "python",
-      "lines": 231,
-      "delta": 13,
-      "size_delta": 259,
-      "dirty": true,
-      "importers": 1,
-      "imports": 2
-    },
-    {
-      "time": "2026-04-14T20:14:19.1839057-04:00",
-      "op": "WRITE",
-      "path": "db.py",
-      "lang": "python",
-      "lines": 357,
-      "delta": 16,
-      "size_delta": 599,
-      "dirty": true,
-      "importers": 4,
-      "is_hub": true,
-      "related_hot": [
-        "scheduler.py"
-      ]
-    },
-    {
-      "time": "2026-04-14T20:14:29.9919529-04:00",
-      "op": "WRITE",
-      "path": "scheduler.py",
-      "lang": "python",
-      "lines": 262,
-      "delta": 31,
-      "size_delta": 1112,
-      "dirty": true,
-      "importers": 1,
-      "imports": 2,
-      "related_hot": [
-        "db.py"
-      ]
-    },
-    {
-      "time": "2026-04-14T20:14:45.2247416-04:00",
-      "op": "WRITE",
-      "path": "app.py",
-      "lang": "python",
-      "lines": 623,
-      "delta": 19,
-      "size_delta": 577,
-      "dirty": true,
-      "imports": 4,
-      "related_hot": [
-        "db.py",
-        "scheduler.py"
-      ]
-    },
-    {
-      "time": "2026-04-14T20:48:24.2920474-04:00",
-      "op": "WRITE",
-      "path": "app.py",
-      "lang": "python",
-      "lines": 630,
-      "delta": 7,
-      "size_delta": 200,
-      "dirty": true,
-      "imports": 4
-    },
-    {
-      "time": "2026-04-14T20:49:25.8447954-04:00",
-      "op": "CREATE",
-      "path": "tray_launcher.py",
-      "lang": "python",
-      "lines": 328,
-      "delta": 328,
-      "size_delta": 10514
-    },
-    {
-      "time": "2026-04-14T20:49:25.8839052-04:00",
-      "op": "WRITE",
-      "path": "tray_launcher.py",
-      "lang": "python",
-      "lines": 328
-    },
-    {
-      "time": "2026-04-14T20:50:05.3751924-04:00",
-      "op": "WRITE",
-      "path": "db.py",
-      "lang": "python",
-      "lines": 358,
-      "delta": 1,
-      "size_delta": 43,
-      "dirty": true,
-      "importers": 4,
-      "is_hub": true,
-      "related_hot": [
-        "app.py"
-      ]
-    },
-    {
-      "time": "2026-04-14T20:50:12.187097-04:00",
-      "op": "WRITE",
-      "path": "app.py",
-      "lang": "python",
-      "lines": 631,
-      "delta": 1,
-      "size_delta": 60,
-      "dirty": true,
-      "imports": 4,
-      "related_hot": [
-        "db.py"
-      ]
-    },
-    {
-      "time": "2026-04-14T20:50:42.5523871-04:00",
-      "op": "REMOVE",
-      "path": "tray_launcher.py",
-      "lang": "python",
-      "delta": -328,
-      "size_delta": -10514
-    },
-    {
-      "time": "2026-04-14T20:51:40.1092981-04:00",
-      "op": "CREATE",
-      "path": "tray_launcher.py",
-      "lang": "python",
-      "lines": 320,
-      "delta": 320,
-      "size_delta": 10521
-    },
-    {
-      "time": "2026-04-14T20:51:40.1435338-04:00",
-      "op": "WRITE",
-      "path": "tray_launcher.py",
-      "lang": "python",
-      "lines": 320
-    },
-    {
-      "time": "2026-04-14T20:53:54.8863693-04:00",
-      "op": "WRITE",
-      "path": "tray_launcher.py",
-      "lang": "python",
-      "lines": 332,
-      "delta": 12,
-      "size_delta": 597
-    },
-    {
-      "time": "2026-04-14T21:07:57.1708812-04:00",
-      "op": "WRITE",
-      "path": "tray_launcher.py",
-      "lang": "python",
-      "lines": 377,
-      "delta": 45,
-      "size_delta": 1947
-    },
-    {
-      "time": "2026-04-14T21:15:38.8817318-04:00",
-      "op": "WRITE",
-      "path": "tray_launcher.py",
-      "lang": "python",
-      "lines": 381,
-      "delta": 4,
-      "size_delta": 223
-    },
-    {
-      "time": "2026-04-14T21:16:31.4996324-04:00",
-      "op": "WRITE",
-      "path": "tray_launcher.py",
-      "lang": "python",
-      "lines": 393,
-      "delta": 12,
-      "size_delta": 469
-    },
-    {
-      "time": "2026-04-14T21:19:16.5722435-04:00",
-      "op": "WRITE",
-      "path": "tray_launcher.py",
-      "lang": "python",
-      "lines": 420,
-      "delta": 27,
-      "size_delta": 524
-    },
-    {
-      "time": "2026-04-14T21:44:29.5555556-04:00",
-      "op": "REMOVE",
-      "path": "tray_launcher.py",
-      "lang": "python",
-      "delta": -420,
-      "size_delta": -14281
-    },
-    {
-      "time": "2026-04-14T21:44:29.5571543-04:00",
-      "op": "CREATE",
-      "path": "tray_launcher.py",
-      "lang": "python",
-      "lines": 424,
-      "delta": 424,
-      "size_delta": 14431,
-      "dirty": true
-    },
-    {
-      "time": "2026-04-14T21:44:38.7074701-04:00",
-      "op": "REMOVE",
-      "path": "tray_launcher.py",
-      "lang": "python",
-      "delta": -424,
-      "size_delta": -14431
-    },
-    {
-      "time": "2026-04-14T21:44:38.7085279-04:00",
-      "op": "CREATE",
-      "path": "tray_launcher.py",
-      "lang": "python",
-      "lines": 429,
-      "delta": 429,
-      "size_delta": 14646,
-      "dirty": true
-    },
-    {
-      "time": "2026-04-15T13:13:52.1137387-04:00",
-      "op": "WRITE",
-      "path": "db.py",
-      "lang": "python",
-      "lines": 364,
+      "lines": 372,
       "delta": 6,
-      "size_delta": 136,
+      "size_delta": 229,
       "dirty": true,
       "importers": 4,
       "is_hub": true
     },
     {
-      "time": "2026-04-15T13:13:52.1738029-04:00",
+      "time": "2026-05-07T14:53:49.5935479-04:00",
       "op": "WRITE",
       "path": "app.py",
       "lang": "python",
-      "lines": 631,
-      "size_delta": -5,
+      "lines": 920,
+      "delta": 23,
+      "size_delta": 1044,
       "dirty": true,
-      "imports": 4,
+      "imports": 5,
       "related_hot": [
         "db.py"
       ]
     },
     {
-      "time": "2026-04-16T15:05:43.0554193-04:00",
+      "time": "2026-05-07T14:53:49.7016075-04:00",
       "op": "WRITE",
       "path": "app.py",
       "lang": "python",
-      "lines": 712,
-      "delta": 81,
-      "size_delta": 2335,
+      "lines": 920,
       "dirty": true,
-      "imports": 4
-    },
-    {
-      "time": "2026-04-17T09:21:15.8051291-04:00",
-      "op": "CREATE",
-      "path": "daily-punch-tracker\\eslint.config.js",
-      "lang": "javascript",
-      "lines": 28,
-      "delta": 28,
-      "size_delta": 909
-    },
-    {
-      "time": "2026-04-17T09:21:15.8650078-04:00",
-      "op": "WRITE",
-      "path": "daily-punch-tracker\\eslint.config.js",
-      "lang": "javascript",
-      "lines": 28
-    },
-    {
-      "time": "2026-04-17T09:21:15.9077897-04:00",
-      "op": "CREATE",
-      "path": "daily-punch-tracker\\vite.config.ts",
-      "lang": "typescript",
-      "lines": 9,
-      "delta": 9,
-      "size_delta": 589
-    },
-    {
-      "time": "2026-04-17T09:21:15.948874-04:00",
-      "op": "WRITE",
-      "path": "daily-punch-tracker\\vite.config.ts",
-      "lang": "typescript",
-      "lines": 9
-    },
-    {
-      "time": "2026-04-17T09:56:41.1155574-04:00",
-      "op": "WRITE",
-      "path": "app.py",
-      "lang": "python",
-      "lines": 865,
-      "delta": 153,
-      "size_delta": 5052,
-      "dirty": true,
-      "imports": 4
-    },
-    {
-      "time": "2026-04-17T12:38:29.9604731-04:00",
-      "op": "CREATE",
-      "path": "browser_profiles.py",
-      "lang": "python",
-      "lines": 68,
-      "delta": 68,
-      "size_delta": 2105
-    },
-    {
-      "time": "2026-04-17T12:38:30.0143053-04:00",
-      "op": "WRITE",
-      "path": "browser_profiles.py",
-      "lang": "python",
-      "lines": 68
-    },
-    {
-      "time": "2026-04-17T12:38:36.7336153-04:00",
-      "op": "WRITE",
-      "path": "db.py",
-      "lang": "python",
-      "lines": 366,
-      "delta": 2,
-      "size_delta": 62,
-      "dirty": true,
-      "importers": 4,
-      "is_hub": true
-    },
-    {
-      "time": "2026-04-17T12:38:52.6057466-04:00",
-      "op": "WRITE",
-      "path": "app.py",
-      "lang": "python",
-      "lines": 874,
-      "delta": 9,
-      "size_delta": 275,
-      "dirty": true,
-      "imports": 4,
+      "imports": 5,
       "related_hot": [
         "db.py"
-      ]
-    },
-    {
-      "time": "2026-04-17T12:38:52.7549918-04:00",
-      "op": "WRITE",
-      "path": "app.py",
-      "lang": "python",
-      "lines": 874,
-      "dirty": true,
-      "imports": 4,
-      "related_hot": [
-        "db.py"
-      ]
-    },
-    {
-      "time": "2026-04-17T12:39:08.2477333-04:00",
-      "op": "WRITE",
-      "path": "app.py",
-      "lang": "python",
-      "lines": 870,
-      "delta": -4,
-      "size_delta": -248,
-      "dirty": true,
-      "imports": 4,
-      "related_hot": [
-        "db.py"
-      ]
-    },
-    {
-      "time": "2026-04-17T12:39:39.3546812-04:00",
-      "op": "WRITE",
-      "path": "app.py",
-      "lang": "python",
-      "lines": 897,
-      "delta": 27,
-      "size_delta": 745,
-      "dirty": true,
-      "imports": 4,
-      "related_hot": [
-        "db.py"
-      ]
-    },
-    {
-      "time": "2026-04-17T12:39:49.4301492-04:00",
-      "op": "WRITE",
-      "path": "app.py",
-      "lang": "python",
-      "lines": 897,
-      "size_delta": 5,
-      "dirty": true,
-      "imports": 4,
-      "related_hot": [
-        "db.py"
-      ]
-    },
-    {
-      "time": "2026-04-17T12:40:11.5583434-04:00",
-      "op": "WRITE",
-      "path": "punch.py",
-      "lang": "python",
-      "lines": 401,
-      "delta": 9,
-      "size_delta": 222,
-      "dirty": true,
-      "importers": 2,
-      "imports": 1,
-      "related_hot": [
-        "db.py",
-        "app.py"
-      ]
-    },
-    {
-      "time": "2026-04-17T12:44:47.8364489-04:00",
-      "op": "WRITE",
-      "path": "app.py",
-      "lang": "python",
-      "lines": 897,
-      "size_delta": 20,
-      "dirty": true,
-      "imports": 4,
-      "related_hot": [
-        "punch.py"
       ]
     }
   ]

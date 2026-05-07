@@ -146,7 +146,7 @@ function Dashboard() {
         />
 
         <footer className="pt-4 text-center text-[11px] text-muted-foreground/60">
-          PontoTolentx · agendador rodando · última sincronização há 2 minutos
+          PonTolentx · agendador rodando · última sincronização há 2 minutos
         </footer>
       </main>
     </div>

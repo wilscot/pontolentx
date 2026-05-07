@@ -64,7 +64,7 @@ class TrayLauncher:
         self.icon = pystray.Icon(
             "ponto_tolentx",
             self._icons["off"],
-            "Ponto TolentX",
+            "PonTolentx",
             menu=pystray.Menu(
                 pystray.MenuItem("Start", self._on_start_clicked),
                 pystray.MenuItem("Stop", self._on_stop_clicked),
@@ -128,11 +128,11 @@ class TrayLauncher:
         self._last_state = state
         self.icon.icon = self._icons[state]
         if state == "off":
-            self.icon.title = "Ponto TolentX - OFF"
+            self.icon.title = "PonTolentx - OFF"
         elif state == "online":
-            self.icon.title = "Ponto TolentX - online (agendador parado)"
+            self.icon.title = "PonTolentx - online (agendador parado)"
         else:
-            self.icon.title = "Ponto TolentX - online (agendador ativo)"
+            self.icon.title = "PonTolentx - online (agendador ativo)"
 
     def _resolve_state(self) -> str:
         if not self._is_port_listening():

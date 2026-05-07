@@ -19,7 +19,7 @@ export function Header() {
           </div>
           <div>
             <h1 className="text-base font-bold tracking-tight">
-              Ponto<span className="text-gradient-primary">Tolentx</span>
+              Pon<span className="text-gradient-primary">Tolentx</span>
             </h1>
             <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
               Automated time tracking
