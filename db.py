@@ -242,6 +242,15 @@ def mark_schedule_ignored(entry_id: int) -> None:
         conn.commit()
 
 
+def reactivate_schedule_entry(entry_id: int) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE schedule SET status = 'pendente', actual_time = NULL WHERE id = ?",
+            (entry_id,),
+        )
+        conn.commit()
+
+
 def mark_past_pending_as_not_executed(reference_date: str) -> int:
     """
     Marks past pending entries as not executed.

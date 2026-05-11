@@ -705,7 +705,9 @@ button.status-badge:hover { border-color: var(--border-strong); color: var(--tex
 
 .inline-edit-btn,
 .cancel-edit-btn,
-.punch-now-btn {
+.punch-now-btn,
+.punch-disable-btn,
+.punch-reactivate-btn {
   min-height: 28px;
   padding: 0 10px;
   font-size: 11px;
@@ -717,6 +719,22 @@ button.status-badge:hover { border-color: var(--border-strong); color: var(--tex
   background: rgba(123, 109, 255, 0.08);
 }
 
+.punch-disable-btn {
+  color: #ffb8b1;
+  border-color: rgba(255, 139, 134, 0.2);
+  background: rgba(255, 139, 134, 0.08);
+}
+
+.punch-reactivate-btn {
+  color: var(--text);
+  border-color: rgba(91, 184, 255, 0.22);
+  background: rgba(91, 184, 255, 0.08);
+}
+
+.inactive-actions {
+  align-items: center;
+}
+
 .punch-edit-controls {
   display: none;
   align-items: center;
@@ -725,6 +743,7 @@ button.status-badge:hover { border-color: var(--border-strong); color: var(--tex
 
 .pending-actions.editing .punch-edit-controls { display: inline-flex; }
 .pending-actions.editing .inline-edit-btn,
+.pending-actions.editing .punch-disable-btn,
 .pending-actions.editing .punch-time-display.pending { display: none; }
 
 .punch-time-input,

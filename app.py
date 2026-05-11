@@ -535,6 +535,45 @@ def api_update_schedule(entry_id: int):
     return jsonify({"ok": True, "scheduled_time": new_time})
 
 
+@app.route("/api/schedule/<int:entry_id>/active", methods=["PATCH"])
+@login_required
+def api_toggle_schedule_active(entry_id: int):
+    data = request.get_json(silent=True) or {}
+    active = data.get("active")
+
+    if not isinstance(active, bool):
+        return jsonify({"error": "Campo active inválido"}), 400
+
+    entry = db.get_schedule_entry(entry_id)
+    if not entry:
+        return jsonify({"error": "Entrada não encontrada"}), 404
+
+    if entry["status"] == "registrado":
+        return jsonify({"error": "Ponto já registrado não pode ser desativado"}), 409
+
+    if entry["date"] < date.today().isoformat():
+        return jsonify({"error": "Pontos de dias passados não podem ser alterados"}), 409
+
+    if active:
+        if entry["status"] == "pendente":
+            return jsonify({"ok": True, "id": entry_id, "status": "pendente"})
+        if entry["status"] != "ignorado":
+            return jsonify({"error": "Apenas pontos desativados podem ser reativados"}), 409
+        db.reactivate_schedule_entry(entry_id)
+        sched.reschedule_entry(entry_id)
+        return jsonify({"ok": True, "id": entry_id, "status": "pendente"})
+
+    if entry["status"] == "ignorado":
+        sched.cancel_entry_job(entry_id)
+        return jsonify({"ok": True, "id": entry_id, "status": "ignorado"})
+    if entry["status"] != "pendente":
+        return jsonify({"error": "Apenas pontos pendentes podem ser desativados"}), 409
+
+    db.mark_schedule_ignored(entry_id)
+    sched.cancel_entry_job(entry_id)
+    return jsonify({"ok": True, "id": entry_id, "status": "ignorado"})
+
+
 # --- special days API ---
 
 @app.route("/api/special-day", methods=["POST"])

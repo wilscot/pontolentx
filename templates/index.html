@@ -93,13 +93,26 @@
             {% elif punch.status == 'erro' %}
               <span class="punch-time-display error">Ag {{ punch.scheduled_time or '--' }} · Ex erro</span>
             {% elif punch.status == 'ignorado' %}
-              <span class="punch-time-display ignored">Ag {{ punch.scheduled_time or '--' }} · Ex ignorado</span>
+              <div class="punch-actions inactive-actions">
+                <span class="punch-time-display ignored">Ag {{ punch.scheduled_time or '--' }} · Ex desativado</span>
+                {% if punch.id and not day.is_past %}
+                  <button
+                    class="btn btn-ghost btn-sm punch-reactivate-btn"
+                    onclick="togglePunchActive({{ punch.id }}, true)"
+                  >Reativar</button>
+                {% endif %}
+              </div>
             {% elif punch.status == 'nao_executado' %}
               <span class="punch-time-display not-executed">Ag {{ punch.scheduled_time or '--' }} · Ex pendente</span>
             {% elif punch.id and not day.is_past %}
               <div class="punch-actions pending-actions">
                 <span class="punch-time-display pending">Ag {{ punch.scheduled_time or '--' }} · Ex —</span>
                 <button class="btn btn-ghost btn-sm inline-edit-btn" onclick="toggleEdit(this)">Editar</button>
+                <button
+                  class="btn btn-ghost btn-sm punch-disable-btn"
+                  data-label="{{ punch.label }}"
+                  onclick="togglePunchActive({{ punch.id }}, false, this)"
+                >Desativar</button>
                 <div class="punch-edit-controls">
                   <input
                     class="punch-time-input"
@@ -464,7 +477,19 @@
       return `<div class="punch-row"><span class="punch-label">${escapeHtml(punch.label)}</span><span class="punch-time-display error">Ag ${scheduled} · Ex erro</span></div>`;
     }
     if (punch.status === "ignorado") {
-      return `<div class="punch-row"><span class="punch-label">${escapeHtml(punch.label)}</span><span class="punch-time-display ignored">Ag ${scheduled} · Ex ignorado</span></div>`;
+      const reactivateButton = punch.id && !day.is_past
+        ? `<button class="btn btn-ghost btn-sm punch-reactivate-btn" onclick="togglePunchActive(${Number(punch.id)}, true)">Reativar</button>`
+        : "";
+
+      return `
+        <div class="punch-row">
+          <span class="punch-label">${escapeHtml(punch.label)}</span>
+          <div class="punch-actions inactive-actions">
+            <span class="punch-time-display ignored">Ag ${scheduled} · Ex desativado</span>
+            ${reactivateButton}
+          </div>
+        </div>
+      `;
     }
     if (punch.status === "nao_executado") {
       return `<div class="punch-row"><span class="punch-label">${escapeHtml(punch.label)}</span><span class="punch-time-display not-executed">Ag ${scheduled} · Ex pendente</span></div>`;
@@ -480,6 +505,7 @@
           <div class="punch-actions pending-actions">
             <span class="punch-time-display pending">Ag ${scheduled} · Ex —</span>
             <button class="btn btn-ghost btn-sm inline-edit-btn" onclick="toggleEdit(this)">Editar</button>
+            <button class="btn btn-ghost btn-sm punch-disable-btn" data-label="${escapeHtml(punch.label)}" onclick="togglePunchActive(${Number(punch.id)}, false, this)">Desativar</button>
             <div class="punch-edit-controls">
               <input class="punch-time-input" type="time" value="${escapeHtml(punch.scheduled_time || "")}" data-id="${escapeHtml(punch.id)}" data-original="${escapeHtml(punch.scheduled_time || "")}" onkeydown="if(event.key==='Enter') saveTime(this)">
               <button class="save-btn visible" onclick="saveTime(this.previousElementSibling)">Salvar</button>
@@ -592,6 +618,36 @@
 
     await refreshDashboard();
     toast("Horário atualizado", "success");
+  }
+
+  async function togglePunchActive(entryId, active, button) {
+    if (!active && button && !confirm(`Desativar "${button.dataset.label}"? Esta batida não será registrada automaticamente.`)) {
+      return;
+    }
+
+    if (button) {
+      button.disabled = true;
+      button.textContent = active ? "..." : "...";
+    }
+
+    const response = await fetch(`/api/schedule/${entryId}/active`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ active }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      toast(error.error || (active ? "Erro ao reativar ponto" : "Erro ao desativar ponto"), "error");
+      if (button) {
+        button.disabled = false;
+        button.textContent = active ? "Reativar" : "Desativar";
+      }
+      return;
+    }
+
+    await refreshDashboard();
+    toast(active ? "Ponto reativado" : "Ponto desativado", "success");
   }
 
   async function toggleScheduler(start) {
