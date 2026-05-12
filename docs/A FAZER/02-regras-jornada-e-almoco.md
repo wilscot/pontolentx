@@ -186,10 +186,36 @@ Esta etapa esta pronta quando:
 
 ## Registro da execução
 
-Agente executor deve preencher ao terminar:
+Status: efetivado com sucesso
 
-- Data:
+- Data: 2026-05-12
+- Agente executor: Codex nesta sessao
 - Arquivos alterados:
+  - `app.py`
+  - `db.py`
+  - `scheduler.py`
+  - `templates/index.html`
+  - `templates/setup.html`
+  - `docs/A FAZER/02-regras-jornada-e-almoco.md`
 - Resumo do que foi feito:
+  - A geração automática de dias normais agora calcula `retorno` a partir de `pausa` com almoço entre 60 e 75 minutos.
+  - A geração automática de `saida` agora fecha a jornada entre 7h45 e 8h15 quando há quatro batidas ativas.
+  - Quando `pausa` e `retorno` estão `ignorado`, o cálculo passa a considerar jornada direta `entrada` -> `saida`, também entre 7h45 e 8h15.
+  - O recálculo automático preserva batidas `registrado`, `ignorado` e `manual_override=1`.
+  - Após uma batida real registrada, as batidas futuras pendentes do mesmo dia são recalculadas para compensar atraso ou adiantamento quando necessário.
+  - Ao desativar ou reativar batidas pelo endpoint da etapa 01, o dia é recalculado para refletir a nova combinação de batidas ativas.
+  - O endpoint `PATCH /api/schedule/<entry_id>` agora retorna confirmação obrigatória quando a edição manual deixaria o total previsto abaixo de 8h00.
+  - O frontend trata a confirmação: cancelar mantém o horário original sem salvar; confirmar reenvia com `force: true`.
+  - A tela `/setup` passou a explicar que os ranges continuam existindo, mas almoço e jornada têm travas de negócio.
 - Comandos de validacao executados:
+  - `python -m py_compile app.py db.py scheduler.py punch.py holidays.py browser_profiles.py`
+  - Teste Python com banco temporario para geração de semana normal, validando almoço entre 1h00 e 1h15 e jornada entre 7h45 e 8h15.
+  - Teste Python com banco temporario para dia com `pausa` e `retorno` em `ignorado`, validando jornada direta `entrada` -> `saida`.
+  - Teste Python com banco temporario para entrada registrada com atraso, validando ajuste da `saida` pendente.
+  - Teste Flask com banco temporario para confirmação de edição manual abaixo de 8h00: resposta 409, cancelamento sem persistir e confirmação com `force: true`.
+  - Teste Python com banco temporario para preservar batidas `registrado`, `ignorado` e `manual_override=1` durante recálculo.
+  - Teste Flask com banco temporario para desativar `pausa` e `retorno` via API e recalcular a jornada direta.
+  - `git diff --check -- app.py db.py scheduler.py templates/index.html templates/setup.html`
 - Riscos ou pendencias:
+  - A validação visual no navegador foi tentada, mas o Playwright local ainda não encontra Chrome em `C:\Users\wfrancischini\AppData\Local\Google\Chrome\Application\chrome.exe`, mesmo bloqueio registrado na etapa 01.
+  - `docs/ai-log` não foi atualizado nesta execução porque o plano exige aprovação explícita do usuário para esse registro.

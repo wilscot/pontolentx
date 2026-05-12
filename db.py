@@ -171,6 +171,23 @@ def get_schedule_entry(entry_id: int) -> dict | None:
     return dict(row) if row else None
 
 
+def get_schedule_for_date(date: str) -> list[dict]:
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT * FROM schedule
+               WHERE date = ?
+               ORDER BY CASE punch_type
+                   WHEN 'entrada' THEN 1
+                   WHEN 'pausa' THEN 2
+                   WHEN 'retorno' THEN 3
+                   WHEN 'saida' THEN 4
+                   ELSE 5
+               END""",
+            (date,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def insert_schedule_entry(date: str, punch_type: str, scheduled_time: str, recalculate: bool = False) -> int:
     """
     Inserts schedule entry when absent.
@@ -210,6 +227,17 @@ def update_schedule_time(entry_id: int, scheduled_time: str) -> None:
     with get_connection() as conn:
         conn.execute(
             "UPDATE schedule SET scheduled_time = ?, status = 'pendente', actual_time = NULL, manual_override = 1 WHERE id = ?",
+            (scheduled_time, entry_id),
+        )
+        conn.commit()
+
+
+def update_schedule_time_auto(entry_id: int, scheduled_time: str) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            """UPDATE schedule
+               SET scheduled_time = ?
+               WHERE id = ? AND status = 'pendente' AND manual_override = 0""",
             (scheduled_time, entry_id),
         )
         conn.commit()

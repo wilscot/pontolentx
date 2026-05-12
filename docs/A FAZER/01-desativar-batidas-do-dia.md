@@ -196,10 +196,30 @@ Esta etapa esta pronta quando:
 
 ## Registro da execução
 
-Agente executor deve preencher ao terminar:
+Status: efetivado com sucesso
 
-- Data:
+- Data: 2026-05-12
+- Agente executor: Codex nesta sessao
 - Arquivos alterados:
+  - `app.py`
+  - `db.py`
+  - `templates/index.html`
+  - `static/style.css`
+  - `docs/A FAZER/01-desativar-batidas-do-dia.md`
+  - `docs/ai-log/index.jsonl`
+  - `docs/ai-log/months/2026-05.md`
 - Resumo do que foi feito:
+  - Criada rota autenticada `PATCH /api/schedule/<entry_id>/active`.
+  - Batidas pendentes podem ser desativadas individualmente e ficam com status `ignorado`.
+  - Batidas desativadas podem ser reativadas para `pendente`.
+  - Pontos registrados, dias passados e estados invalidos sao recusados pela API.
+  - O card do dia agora mostra `Desativar` para batidas pendentes e `Reativar` para batidas desativadas.
+  - Ao desativar, o job do scheduler e cancelado; ao reativar, o scheduler tenta reagendar se estiver ativo.
 - Comandos de validacao executados:
+  - `python -m py_compile app.py db.py scheduler.py punch.py holidays.py browser_profiles.py`
+  - Teste Flask com banco temporario para desativar, reativar, recusar ponto registrado e recusar dia passado.
+  - Teste Flask com banco temporario para renderizar o dashboard e confirmar status `ignorado` via `/api/week`.
+  - `git diff --check -- app.py db.py templates/index.html static/style.css`
 - Riscos ou pendencias:
+  - Validacao visual no navegador via Playwright foi tentada, mas o ambiente nao encontrou Chrome no caminho esperado.
+  - A etapa 02 deve considerar status `ignorado` ao calcular almoço e jornada diaria.

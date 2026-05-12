@@ -600,7 +600,7 @@
     actions.classList.remove("editing");
   }
 
-  async function saveTime(input) {
+  async function saveTime(input, force = false) {
     const id = input.dataset.id;
     const value = input.value;
     if (!value) return;
@@ -608,11 +608,24 @@
     const response = await fetch(`/api/schedule/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ scheduled_time: value }),
+      body: JSON.stringify({ scheduled_time: value, force }),
     });
 
     if (!response.ok) {
-      toast("Erro ao salvar horário", "error");
+      const error = await response.json().catch(() => ({}));
+      if (response.status === 409 && error.requires_confirmation) {
+        const confirmed = confirm(error.message || `Com este ajuste, o dia ficará com ${error.worked_label} registradas. Salvar mesmo assim?`);
+        if (confirmed) {
+          await saveTime(input, true);
+          return;
+        }
+        input.value = input.dataset.original || "";
+        const actions = input.closest(".pending-actions");
+        if (actions) actions.classList.remove("editing");
+        toast("Alteração cancelada", "error");
+        return;
+      }
+      toast(error.error || "Erro ao salvar horário", "error");
       return;
     }
 

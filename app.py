@@ -87,6 +87,8 @@ def _time_to_minutes(time_str: str | None) -> int | None:
         hour, minute = map(int, time_str.split(":"))
     except (TypeError, ValueError):
         return None
+    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+        return None
     return hour * 60 + minute
 
 
@@ -191,6 +193,48 @@ def _build_day_balance(punches: list[dict]) -> dict:
         "balance_type": balance_type,
         "show_balance": True,
     }
+
+
+def _planned_minutes_for_schedule(
+    entries: list[dict],
+    edited_entry_id: int | None = None,
+    edited_time: str | None = None,
+) -> int | None:
+    active_entries = [
+        entry
+        for entry in entries
+        if entry.get("status") != "ignorado"
+    ]
+    active_types = {entry["punch_type"] for entry in active_entries}
+    minutes_by_type = {}
+
+    for entry in active_entries:
+        if edited_entry_id is not None and entry["id"] == edited_entry_id:
+            time_value = edited_time
+        elif entry.get("status") == "registrado":
+            time_value = entry.get("actual_time") or entry.get("scheduled_time")
+        else:
+            time_value = entry.get("scheduled_time")
+        minutes_by_type[entry["punch_type"]] = _time_to_minutes(time_value)
+
+    entrada = minutes_by_type.get("entrada")
+    pausa = minutes_by_type.get("pausa")
+    retorno = minutes_by_type.get("retorno")
+    saida = minutes_by_type.get("saida")
+
+    if set(sched.PUNCH_ORDER).issubset(active_types):
+        if None in (entrada, pausa, retorno, saida):
+            return None
+        if pausa <= entrada or saida <= retorno:
+            return None
+        return (pausa - entrada) + (saida - retorno)
+
+    if {"entrada", "saida"}.issubset(active_types) and not {"pausa", "retorno"} & active_types:
+        if entrada is None or saida is None or saida <= entrada:
+            return None
+        return saida - entrada
+
+    return None
 
 
 def _build_week_data(week_start: str) -> list[dict]:
@@ -519,15 +563,31 @@ def api_scheduler_status():
 @app.route("/api/schedule/<int:entry_id>", methods=["PATCH"])
 @login_required
 def api_update_schedule(entry_id: int):
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     new_time = data.get("scheduled_time", "").strip()
+    force = data.get("force") is True
 
     if not new_time or len(new_time) != 5 or ":" not in new_time:
+        return jsonify({"error": "Horário inválido"}), 400
+    if _time_to_minutes(new_time) is None:
         return jsonify({"error": "Horário inválido"}), 400
 
     entry = db.get_schedule_entry(entry_id)
     if not entry:
         return jsonify({"error": "Entrada não encontrada"}), 404
+    if entry["status"] == "ignorado":
+        return jsonify({"error": "Ponto desativado não pode ser editado"}), 409
+
+    day_entries = db.get_schedule_for_date(entry["date"])
+    planned_minutes = _planned_minutes_for_schedule(day_entries, entry_id, new_time)
+    if planned_minutes is not None and planned_minutes < DAILY_WORK_TARGET_MINUTES and not force:
+        worked_label = _format_duration_human(planned_minutes)
+        return jsonify({
+            "requires_confirmation": True,
+            "worked_minutes": planned_minutes,
+            "worked_label": worked_label,
+            "message": f"Com este ajuste, o dia ficará com {worked_label} registradas.",
+        }), 409
 
     db.update_schedule_time(entry_id, new_time)
     sched.reschedule_entry(entry_id)
@@ -560,6 +620,7 @@ def api_toggle_schedule_active(entry_id: int):
         if entry["status"] != "ignorado":
             return jsonify({"error": "Apenas pontos desativados podem ser reativados"}), 409
         db.reactivate_schedule_entry(entry_id)
+        sched.recalculate_day_schedule(entry["date"])
         sched.reschedule_entry(entry_id)
         return jsonify({"ok": True, "id": entry_id, "status": "pendente"})
 
@@ -571,6 +632,7 @@ def api_toggle_schedule_active(entry_id: int):
 
     db.mark_schedule_ignored(entry_id)
     sched.cancel_entry_job(entry_id)
+    sched.recalculate_day_schedule(entry["date"])
     return jsonify({"ok": True, "id": entry_id, "status": "ignorado"})
 
 
@@ -928,6 +990,7 @@ def api_punch_now():
     def run_punch_now():
         try:
             execute_punch(punch_type, entry["id"])
+            sched.recalculate_day_after_registered(entry["id"])
         except Exception as exc:
             print(f"[punch-now] ERRO: {exc}")
 
