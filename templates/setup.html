@@ -393,6 +393,30 @@
       <section class="settings-section-card">
         <div class="settings-section-head">
           <div>
+            <p class="settings-section-eyebrow">Banco de horas</p>
+            <h3>Saldo oficial manual</h3>
+          </div>
+          <span class="settings-section-tag">Resumo</span>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-group full">
+            <label>Banco de horas oficial</label>
+            <input
+              type="text"
+              name="manual_bank_balance"
+              value="{{ config.manual_bank_balance or '00:00' }}"
+              placeholder="+00:00"
+              inputmode="text"
+            >
+            <span class="form-hint">Informe o saldo exibido no aplicativo oficial da empresa. Este valor substitui o total calculado localmente no dashboard.</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="settings-section-card">
+        <div class="settings-section-head">
+          <div>
             <p class="settings-section-eyebrow">Agenda automática</p>
             <h3>Horários base e variação aleatória</h3>
           </div>

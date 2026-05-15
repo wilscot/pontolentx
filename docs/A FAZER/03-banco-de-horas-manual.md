@@ -167,10 +167,25 @@ Esta etapa esta pronta quando:
 
 ## Registro da execução
 
-Agente executor deve preencher ao terminar:
+Status: efetivado com sucesso
 
-- Data:
+- Data: 2026-05-15
+- Agente executor: Codex nesta sessao
 - Arquivos alterados:
+  - `app.py`
+  - `db.py`
+  - `templates/setup.html`
+  - `docs/A FAZER/03-banco-de-horas-manual.md`
 - Resumo do que foi feito:
+  - Adicionada a configuracao persistente `manual_bank_minutes`, armazenada em minutos inteiros como string.
+  - A tela `/setup` passou a aceitar o campo `manual_bank_balance` nos formatos `HH:MM`, `+HH:MM`, `-HH:MM` e vazio como zero.
+  - Formatos invalidos agora retornam erro sem salvar parcialmente as demais configuracoes do formulario.
+  - O card "Banco de horas" do dashboard passou a usar o saldo oficial manual, com destaque positivo, negativo ou neutro conforme o valor salvo.
+  - Os saldos diarios dos cards continuam calculados pelas batidas reais e nao foram usados para determinar o total oficial.
 - Comandos de validacao executados:
+  - `python -m py_compile app.py db.py scheduler.py punch.py holidays.py browser_profiles.py`
+  - Teste Flask com banco temporario para salvar `+02:30`, `-01:15` e vazio, validar persistencia em `manual_bank_minutes` e conferir valor/hint/accent da metrica "Banco de horas".
+  - Teste Flask com banco temporario para rejeitar `2,30`, `abc` e `01:99`, confirmando retorno 400 e ausencia de salvamento parcial.
 - Riscos ou pendencias:
+  - Validacao visual no navegador nao foi executada nesta etapa.
+  - `docs/ai-log` nao foi atualizado porque exige aprovacao explicita do usuario.

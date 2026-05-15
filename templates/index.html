@@ -579,6 +579,18 @@
     }
   }
 
+  setInterval(() => {
+    if (document.visibilityState === "visible") {
+      refreshDashboard();
+    }
+  }, 60000);
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      refreshDashboard();
+    }
+  });
+
   function toggleEdit(button) {
     const actions = button.closest(".pending-actions");
     if (!actions) return;

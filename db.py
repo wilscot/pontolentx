@@ -32,6 +32,7 @@ DEFAULT_CONFIG = {
     "saida_range_depois": "15",
     "scheduler_active": "0",
     "headless_mode": "0",
+    "manual_bank_minutes": "0",
 }
 
 

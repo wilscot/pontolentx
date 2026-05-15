@@ -479,8 +479,9 @@ def _recalculate_full_day(iso_date: str, entries: dict[str, dict]) -> None:
     lunch_minutes = retorno - pausa
     if not (MIN_LUNCH_MINUTES <= lunch_minutes <= MAX_LUNCH_MINUTES):
         retorno_entry = entries["retorno"]
-        if _can_auto_update_entry(retorno_entry, iso_date):
-            retorno = pausa + _choose_lunch_minutes(pausa)
+        new_retorno = pausa + _choose_lunch_minutes(pausa)
+        if _can_auto_update_entry(retorno_entry, iso_date, new_retorno):
+            retorno = new_retorno
             db.update_schedule_time_auto(retorno_entry["id"], _minutes_to_time(retorno))
             values["retorno"] = retorno
 
@@ -489,16 +490,16 @@ def _recalculate_full_day(iso_date: str, entries: dict[str, dict]) -> None:
         return
 
     saida_entry = entries["saida"]
-    if not _can_auto_update_entry(saida_entry, iso_date):
-        return
-
     morning_minutes = pausa - entrada
     if morning_minutes < 0 or retorno <= pausa:
         return
     target = _choose_work_minutes_for_exit(retorno, morning_minutes)
+    new_saida = retorno + max(0, target - morning_minutes)
+    if not _can_auto_update_entry(saida_entry, iso_date, new_saida):
+        return
     db.update_schedule_time_auto(
         saida_entry["id"],
-        _minutes_to_time(retorno + max(0, target - morning_minutes)),
+        _minutes_to_time(new_saida),
     )
 
 
@@ -514,10 +515,11 @@ def _recalculate_direct_day(iso_date: str, entries: dict[str, dict]) -> None:
         return
 
     saida_entry = entries["saida"]
-    if not _can_auto_update_entry(saida_entry, iso_date):
-        return
     target = _choose_work_minutes_for_exit(entrada, 0)
-    db.update_schedule_time_auto(saida_entry["id"], _minutes_to_time(entrada + target))
+    new_saida = entrada + target
+    if not _can_auto_update_entry(saida_entry, iso_date, new_saida):
+        return
+    db.update_schedule_time_auto(saida_entry["id"], _minutes_to_time(new_saida))
 
 
 def _entry_minutes_by_type(entries: dict[str, dict]) -> dict[str, int | None]:
@@ -542,7 +544,7 @@ def _planned_full_day_work(values: dict[str, int | None]) -> int | None:
     return (pausa - entrada) + (saida - retorno)
 
 
-def _can_auto_update_entry(entry: dict, iso_date: str) -> bool:
+def _can_auto_update_entry(entry: dict, iso_date: str, candidate_minutes: int | None = None) -> bool:
     if _is_auto_recalc_protected(entry):
         return False
     today = date.today().isoformat()
@@ -550,8 +552,10 @@ def _can_auto_update_entry(entry: dict, iso_date: str) -> bool:
         return False
     if iso_date > today:
         return True
+    if candidate_minutes is None:
+        return True
     now = datetime.now()
-    return _time_to_minutes(entry["scheduled_time"]) > now.hour * 60 + now.minute
+    return candidate_minutes > now.hour * 60 + now.minute
 
 
 def _reschedule_pending_entries_for_date(iso_date: str) -> None:

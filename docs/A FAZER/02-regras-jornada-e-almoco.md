@@ -203,6 +203,7 @@ Status: efetivado com sucesso
   - Quando `pausa` e `retorno` estão `ignorado`, o cálculo passa a considerar jornada direta `entrada` -> `saida`, também entre 7h45 e 8h15.
   - O recálculo automático preserva batidas `registrado`, `ignorado` e `manual_override=1`.
   - Após uma batida real registrada, as batidas futuras pendentes do mesmo dia são recalculadas para compensar atraso ou adiantamento quando necessário.
+  - O carregamento do dashboard agora reconcilia o dia atual antes de montar os cards, cobrindo casos em que uma batida já registrada não disparou o recálculo no momento exato.
   - Ao desativar ou reativar batidas pelo endpoint da etapa 01, o dia é recalculado para refletir a nova combinação de batidas ativas.
   - O endpoint `PATCH /api/schedule/<entry_id>` agora retorna confirmação obrigatória quando a edição manual deixaria o total previsto abaixo de 8h00.
   - O frontend trata a confirmação: cancelar mantém o horário original sem salvar; confirmar reenvia com `force: true`.
@@ -215,6 +216,7 @@ Status: efetivado com sucesso
   - Teste Flask com banco temporario para confirmação de edição manual abaixo de 8h00: resposta 409, cancelamento sem persistir e confirmação com `force: true`.
   - Teste Python com banco temporario para preservar batidas `registrado`, `ignorado` e `manual_override=1` durante recálculo.
   - Teste Flask com banco temporario para desativar `pausa` e `retorno` via API e recalcular a jornada direta.
+  - Teste Python com banco temporario reproduzindo `entrada 07:39`, `pausa 11:38`, `retorno real 13:03` e `saida agendada 16:31`, validando reconciliação do dashboard para saída entre `16:49` e `17:19`.
   - `git diff --check -- app.py db.py scheduler.py templates/index.html templates/setup.html`
 - Riscos ou pendencias:
   - A validação visual no navegador foi tentada, mas o Playwright local ainda não encontra Chrome em `C:\Users\wfrancischini\AppData\Local\Google\Chrome\Application\chrome.exe`, mesmo bloqueio registrado na etapa 01.

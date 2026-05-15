@@ -107,6 +107,53 @@ def _format_duration_human(total_minutes: int, include_plus: bool = False) -> st
     return f"{sign}{hours}h {minutes:02d}m"
 
 
+def _parse_manual_bank_balance(value: str | None) -> int | None:
+    raw_value = (value or "").strip()
+    if not raw_value:
+        return 0
+
+    sign = 1
+    if raw_value[0] in {"+", "-"}:
+        if raw_value[0] == "-":
+            sign = -1
+        raw_value = raw_value[1:]
+
+    try:
+        hours_text, minutes_text = raw_value.split(":", 1)
+        hours = int(hours_text)
+        minutes = int(minutes_text)
+    except (TypeError, ValueError):
+        return None
+
+    if hours < 0 or not (0 <= minutes <= 59):
+        return None
+    if not hours_text.isdigit() or len(minutes_text) != 2 or not minutes_text.isdigit():
+        return None
+
+    return sign * ((hours * 60) + minutes)
+
+
+def _format_manual_bank_input(total_minutes: int | str | None) -> str:
+    try:
+        minutes_value = int(total_minutes or 0)
+    except (TypeError, ValueError):
+        minutes_value = 0
+
+    if minutes_value == 0:
+        return "00:00"
+
+    sign = "-" if minutes_value < 0 else "+"
+    hours, minutes = divmod(abs(minutes_value), 60)
+    return f"{sign}{hours:02d}:{minutes:02d}"
+
+
+def _get_manual_bank_minutes() -> int:
+    try:
+        return int(db.get_config("manual_bank_minutes") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
 def _format_range_label(start: date, end: date) -> str:
     return f"{start.day:02d}/{start.month:02d} — {end.day:02d}/{end.month:02d}"
 
@@ -241,17 +288,21 @@ def _build_week_data(week_start: str) -> list[dict]:
     today = date.today().isoformat()
     db.mark_past_pending_as_not_executed(today)
 
+    start = date.fromisoformat(week_start)
+    week_dates = [(start + timedelta(days=i)).isoformat() for i in range(5)]
+    if today in week_dates:
+        sched.recalculate_day_schedule(today)
+
     schedule_rows = {
         (r["date"], r["punch_type"]): r
         for r in db.get_week_schedule(week_start)
     }
     special_days = db.get_special_days_for_week(week_start)
 
-    start = date.fromisoformat(week_start)
     days = []
 
     for i in range(5):
-        d = (start + timedelta(days=i)).isoformat()
+        d = week_dates[i]
         special = special_days.get(d)
         day_type = special["day_type"] if special else "normal"
         notes = special["notes"] if special else ""
@@ -319,18 +370,16 @@ def _build_dashboard_summary(weeks: list[list[dict]]) -> dict:
     closed_days = [day for day in all_days if day.get("worked_minutes") is not None]
     worked_minutes = sum(day["worked_minutes"] for day in closed_days) if closed_days else 0
     expected_minutes = DAILY_WORK_TARGET_MINUTES * len(closed_days)
-    balance_minutes = sum(day["balance_minutes"] for day in closed_days) if closed_days else 0
     next_punch = _find_next_punch(all_days)
+    manual_bank_minutes = _get_manual_bank_minutes()
 
-    if balance_minutes > 0:
+    if manual_bank_minutes > 0:
         balance_accent = "overtime"
-        balance_hint = "saldo positivo"
-    elif balance_minutes < 0:
+    elif manual_bank_minutes < 0:
         balance_accent = "danger"
-        balance_hint = "horas devendo"
     else:
         balance_accent = "muted"
-        balance_hint = "saldo zerado"
+    balance_hint = "saldo oficial manual"
 
     worked_hint = (
         f"de {_format_duration_human(expected_minutes)} previstas"
@@ -354,7 +403,7 @@ def _build_dashboard_summary(weeks: list[list[dict]]) -> dict:
             },
             {
                 "label": "Banco de horas",
-                "value": _format_duration_human(balance_minutes, include_plus=True),
+                "value": _format_duration_human(manual_bank_minutes, include_plus=True),
                 "hint": balance_hint,
                 "accent": balance_accent,
             },
@@ -457,6 +506,7 @@ def setup():
         schedule_pattern_changed = False
         panel_password = data.get("panel_password", "").strip()
         panel_password_confirm = data.get("panel_password_confirm", "").strip()
+        manual_bank_minutes = _parse_manual_bank_balance(data.get("manual_bank_balance"))
 
         if panel_password or panel_password_confirm:
             if len(panel_password) < 6:
@@ -464,8 +514,13 @@ def setup():
             elif panel_password != panel_password_confirm:
                 error = "A confirmação da nova senha do painel não confere."
 
+        if error is None and manual_bank_minutes is None:
+            error = "Banco de horas oficial inválido. Use o formato +HH:MM, -HH:MM ou HH:MM."
+
         if error:
+            config.update(data.to_dict())
             config["browser_channel"] = normalize_browser(config.get("browser_channel"))
+            config["manual_bank_balance"] = data.get("manual_bank_balance", "").strip()
             for browser in iter_browser_keys():
                 config_key = get_profile_config_key(browser)
                 config[config_key] = _sanitize_profile_path(browser, config.get(config_key, ""))
@@ -482,6 +537,7 @@ def setup():
         db.set_config("browser_channel", browser_channel)
         db.set_config("chrome_profile_name", "Default")
         db.set_config("headless_mode", "1" if data.get("headless_mode") == "1" else "0")
+        db.set_config("manual_bank_minutes", str(manual_bank_minutes))
 
         for browser in iter_browser_keys():
             config_key = get_profile_config_key(browser)
@@ -524,6 +580,7 @@ def setup():
         return redirect(url_for("index"))
 
     config["browser_channel"] = normalize_browser(config.get("browser_channel"))
+    config["manual_bank_balance"] = _format_manual_bank_input(config.get("manual_bank_minutes"))
     for browser in iter_browser_keys():
         config_key = get_profile_config_key(browser)
         config[config_key] = _sanitize_profile_path(browser, config.get(config_key, ""))
