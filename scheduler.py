@@ -1,5 +1,7 @@
 import random
 import threading
+import time
+import logging
 from datetime import date, timedelta, datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -13,9 +15,12 @@ MIN_LUNCH_MINUTES = 60
 MAX_LUNCH_MINUTES = 75
 MIN_WORK_MINUTES = 7 * 60 + 45
 MAX_WORK_MINUTES = 8 * 60 + 15
+AUTO_PUNCH_RETRY_ATTEMPTS = 3
+AUTO_PUNCH_RETRY_DELAY_SECONDS = 45
 
 _scheduler: BackgroundScheduler | None = None
 _lock = threading.Lock()
+logger = logging.getLogger(__name__)
 
 
 # --- public API ---
@@ -147,11 +152,40 @@ def _schedule_punch_job(entry: dict) -> None:
 
 
 def _run_punch(punch_type: str, schedule_id: int) -> None:
-    try:
-        execute_punch(punch_type, schedule_id)
-        recalculate_day_after_registered(schedule_id)
-    except Exception:
-        pass
+    last_error = None
+    for attempt in range(1, AUTO_PUNCH_RETRY_ATTEMPTS + 1):
+        try:
+            execute_punch(punch_type, schedule_id, record_failure=False)
+            recalculate_day_after_registered(schedule_id)
+            if attempt > 1:
+                logger.info(
+                    "Automatic punch recovered after retry: schedule_id=%s punch_type=%s attempt=%s",
+                    schedule_id,
+                    punch_type,
+                    attempt,
+                )
+            return
+        except Exception as exc:
+            last_error = exc
+            logger.warning(
+                "Automatic punch attempt failed: schedule_id=%s punch_type=%s attempt=%s/%s error=%s",
+                schedule_id,
+                punch_type,
+                attempt,
+                AUTO_PUNCH_RETRY_ATTEMPTS,
+                exc,
+            )
+            if attempt < AUTO_PUNCH_RETRY_ATTEMPTS:
+                time.sleep(AUTO_PUNCH_RETRY_DELAY_SECONDS)
+
+    message = str(last_error) if last_error else "Falha desconhecida ao registrar ponto automaticamente."
+    db.mark_schedule_error(schedule_id, message)
+    logger.error(
+        "Automatic punch failed after retries: schedule_id=%s punch_type=%s error=%s",
+        schedule_id,
+        punch_type,
+        message,
+    )
 
 
 # --- schedule generation ---

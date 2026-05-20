@@ -317,6 +317,7 @@ def _build_week_data(week_start: str) -> list[dict]:
                 "scheduled_time": entry["scheduled_time"] if entry else None,
                 "actual_time": entry["actual_time"] if entry else None,
                 "status": entry["status"] if entry else None,
+                "error_message": entry.get("error_message", "") if entry else "",
             })
 
         balance = _build_day_balance(punches)

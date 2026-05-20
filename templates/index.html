@@ -91,7 +91,10 @@
             {% if punch.status == 'registrado' %}
               <span class="punch-time-display registered">Ag {{ punch.scheduled_time or '--' }} · Ex {{ punch.actual_time or '—' }}</span>
             {% elif punch.status == 'erro' %}
-              <span class="punch-time-display error">Ag {{ punch.scheduled_time or '--' }} · Ex erro</span>
+              <span class="punch-time-display error" title="{{ punch.error_message or 'Falha ao registrar automaticamente.' }}">Ag {{ punch.scheduled_time or '--' }} · Ex erro</span>
+              {% if punch.error_message %}
+                <span class="punch-error-detail">{{ punch.error_message }}</span>
+              {% endif %}
             {% elif punch.status == 'ignorado' %}
               <div class="punch-actions inactive-actions">
                 <span class="punch-time-display ignored">Ag {{ punch.scheduled_time or '--' }} · Ex desativado</span>
@@ -474,7 +477,11 @@
       return `<div class="punch-row"><span class="punch-label">${escapeHtml(punch.label)}</span><span class="punch-time-display registered">Ag ${scheduled} · Ex ${escapeHtml(punch.actual_time || "—")}</span></div>`;
     }
     if (punch.status === "erro") {
-      return `<div class="punch-row"><span class="punch-label">${escapeHtml(punch.label)}</span><span class="punch-time-display error">Ag ${scheduled} · Ex erro</span></div>`;
+      const errorMessage = punch.error_message || "Falha ao registrar automaticamente.";
+      const errorDetail = punch.error_message
+        ? `<span class="punch-error-detail">${escapeHtml(punch.error_message)}</span>`
+        : "";
+      return `<div class="punch-row"><span class="punch-label">${escapeHtml(punch.label)}</span><span class="punch-time-display error" title="${escapeHtml(errorMessage)}">Ag ${scheduled} · Ex erro</span>${errorDetail}</div>`;
     }
     if (punch.status === "ignorado") {
       const reactivateButton = punch.id && !day.is_past

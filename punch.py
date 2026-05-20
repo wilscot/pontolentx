@@ -161,6 +161,7 @@ def execute_punch(
     schedule_id: int,
     dry_run: bool = False,
     log_callback: Callable[[str, bool], None] | None = None,
+    record_failure: bool = True,
 ) -> None:
     """
     Executes or simulates a punch registration on Pontotel.
@@ -172,9 +173,10 @@ def execute_punch(
     headless trace mode to stream progress to the web interface).
     """
     if punch_type not in PUNCH_BUTTON_PATTERNS:
-        if not dry_run:
-            db.mark_schedule_error(schedule_id)
-        raise ValueError(f"Unknown punch type: {punch_type}")
+        message = f"Unknown punch type: {punch_type}"
+        if not dry_run and record_failure:
+            db.mark_schedule_error(schedule_id, message)
+        raise ValueError(message)
 
     email = db.get_config("email")
     senha = db.decrypt(db.get_config("senha_enc"))
@@ -195,9 +197,10 @@ def execute_punch(
         headless = False
 
     if not all([email, senha, local_coletor, pin, user_data_dir]):
-        if not dry_run:
-            db.mark_schedule_error(schedule_id)
-        raise RuntimeError(f"Credenciais ou caminho do perfil {browser_label} não configurados.")
+        message = f"Credenciais ou caminho do perfil {browser_label} não configurados."
+        if not dry_run and record_failure:
+            db.mark_schedule_error(schedule_id, message)
+        raise RuntimeError(message)
 
     _log_step(
         log_callback,
@@ -242,7 +245,9 @@ def execute_punch(
         except Exception as exc:
             _log_step(log_callback, f"Erro: {exc}", ok=False)
             if not dry_run:
-                db.mark_schedule_error(schedule_id)
+                message = f"Falha ao registrar ponto '{punch_type}': {exc}"
+                if record_failure:
+                    db.mark_schedule_error(schedule_id, message)
             raise RuntimeError(f"Falha ao registrar ponto '{punch_type}': {exc}") from exc
 
         finally:

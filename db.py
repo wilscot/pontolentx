@@ -90,6 +90,7 @@ def init_db() -> None:
                 actual_time    TEXT,
                 status         TEXT NOT NULL DEFAULT 'pendente',
                 manual_override INTEGER NOT NULL DEFAULT 0,
+                error_message  TEXT DEFAULT '',
                 UNIQUE(date, punch_type)
             );
 
@@ -145,6 +146,10 @@ def _ensure_schedule_migrations(conn: sqlite3.Connection) -> None:
     if "manual_override" not in cols:
         conn.execute(
             "ALTER TABLE schedule ADD COLUMN manual_override INTEGER NOT NULL DEFAULT 0"
+        )
+    if "error_message" not in cols:
+        conn.execute(
+            "ALTER TABLE schedule ADD COLUMN error_message TEXT DEFAULT ''"
         )
 
 
@@ -209,7 +214,7 @@ def insert_schedule_entry(date: str, punch_type: str, scheduled_time: str, recal
             if recalculate:
                 conn.execute(
                     """UPDATE schedule
-                       SET scheduled_time = ?, status = 'pendente', actual_time = NULL, manual_override = 0
+                       SET scheduled_time = ?, status = 'pendente', actual_time = NULL, manual_override = 0, error_message = ''
                        WHERE id = ?""",
                     (scheduled_time, entry_id),
                 )
@@ -227,7 +232,7 @@ def insert_schedule_entry(date: str, punch_type: str, scheduled_time: str, recal
 def update_schedule_time(entry_id: int, scheduled_time: str) -> None:
     with get_connection() as conn:
         conn.execute(
-            "UPDATE schedule SET scheduled_time = ?, status = 'pendente', actual_time = NULL, manual_override = 1 WHERE id = ?",
+            "UPDATE schedule SET scheduled_time = ?, status = 'pendente', actual_time = NULL, manual_override = 1, error_message = '' WHERE id = ?",
             (scheduled_time, entry_id),
         )
         conn.commit()
@@ -247,17 +252,17 @@ def update_schedule_time_auto(entry_id: int, scheduled_time: str) -> None:
 def mark_schedule_done(entry_id: int, actual_time: str) -> None:
     with get_connection() as conn:
         conn.execute(
-            "UPDATE schedule SET actual_time = ?, status = 'registrado' WHERE id = ?",
+            "UPDATE schedule SET actual_time = ?, status = 'registrado', error_message = '' WHERE id = ?",
             (actual_time, entry_id),
         )
         conn.commit()
 
 
-def mark_schedule_error(entry_id: int) -> None:
+def mark_schedule_error(entry_id: int, message: str = "") -> None:
     with get_connection() as conn:
         conn.execute(
-            "UPDATE schedule SET status = 'erro' WHERE id = ?",
-            (entry_id,),
+            "UPDATE schedule SET status = 'erro', error_message = ? WHERE id = ?",
+            (message[:500], entry_id),
         )
         conn.commit()
 
@@ -265,7 +270,7 @@ def mark_schedule_error(entry_id: int) -> None:
 def mark_schedule_ignored(entry_id: int) -> None:
     with get_connection() as conn:
         conn.execute(
-            "UPDATE schedule SET status = 'ignorado' WHERE id = ?",
+            "UPDATE schedule SET status = 'ignorado', error_message = '' WHERE id = ?",
             (entry_id,),
         )
         conn.commit()
@@ -274,7 +279,7 @@ def mark_schedule_ignored(entry_id: int) -> None:
 def reactivate_schedule_entry(entry_id: int) -> None:
     with get_connection() as conn:
         conn.execute(
-            "UPDATE schedule SET status = 'pendente', actual_time = NULL WHERE id = ?",
+            "UPDATE schedule SET status = 'pendente', actual_time = NULL, error_message = '' WHERE id = ?",
             (entry_id,),
         )
         conn.commit()

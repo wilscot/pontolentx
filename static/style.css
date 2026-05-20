@@ -666,6 +666,7 @@ button.status-badge:hover { border-color: var(--border-strong); color: var(--tex
 
 .punch-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
@@ -693,6 +694,15 @@ button.status-badge:hover { border-color: var(--border-strong); color: var(--tex
 .punch-time-display.not-executed { color: var(--yellow); }
 .punch-time-display.pending { color: var(--text); }
 .punch-time-display.is-muted { color: var(--gray); }
+
+.punch-error-detail {
+  flex: 1 0 100%;
+  margin-left: 96px;
+  margin-top: -6px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #ffc0bc;
+}
 
 .punch-actions {
   display: flex;
